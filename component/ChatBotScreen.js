@@ -12,7 +12,7 @@ import { doc, getDoc, collection, getDocs } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 import CustomHeader from './CustomHeader';
 
-const BACKEND_URL = 'http://10.0.2.2:3000/chatbot';
+const BACKEND_URL = 'http://172.16.201.190:3000/chatbot';
 const WEEKDAYS = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
 const MONTHS   = [
   'January','February','March','April','May','June',

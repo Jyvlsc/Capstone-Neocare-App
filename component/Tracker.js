@@ -20,7 +20,7 @@ import {
 import theme from "../src/theme";
 import CustomHeader from "./CustomHeader";
 
-const SERVER_URL = "http://192.168.1.11:3000"; // ← update this
+const SERVER_URL = "http://172.16.201.190:3000"; // ← update this
 
 export default function Tracker({ navigation }) {
   const [notes, setNotes] = useState([]);
@@ -31,46 +31,8 @@ export default function Tracker({ navigation }) {
   const [noteSummaryLoading, setNoteSummaryLoading] = useState(false);
   const [loading, setLoading] = useState(true);
   const [filterType, setFilterType] = useState("all");
-  const [notesLoading, setNotesLoading] = useState(true);
 
-  // ─── Subscribe to all consultationNotes for this client ────────────────────
-  useEffect(() => {
-    const user = auth.currentUser;
-    if (!user) {
-      setNotesLoading(false);
-      return;
-    }
-
-    const q = query(
-      collection(db, "consultationNotes"),
-      where("clientId", "==", user.uid),
-      orderBy("createdAt", "desc")
-    );
-
-    const unsub = onSnapshot(
-      q,
-      snap => {
-        const arr = snap.docs.map(d => {
-          const data = d.data();
-          return {
-            id: d.id,
-            ...data,
-            createdAt: data.createdAt?.toDate() ?? new Date(),
-          };
-        });
-        setNotes(arr);
-        setNotesLoading(false);
-      },
-      err => {
-        console.error("Tracker snapshot error:", err);
-        setNotesLoading(false);
-      }
-    );
-
-    return () => unsub();
-  }, []);
-
-  // ─── Listen in real time to all notes for this client user ─────────────────────────
+  // ─── One real-time subscription for *all* this client's notes ────────────────
   useEffect(() => {
     const user = auth.currentUser;
     if (!user) {
@@ -78,36 +40,38 @@ export default function Tracker({ navigation }) {
       return;
     }
 
-    // listen in real time to all notes for this client user
     const notesQ = query(
       collection(db, "consultationNotes"),
-      where("clientId", "==", user.uid)
+      where("clientId", "==", user.uid),
+      orderBy("createdAt", "desc") // Always order by createdAt
     );
 
     const unsubscribe = onSnapshot(
       notesQ,
       snapshot => {
-        const allNotes = snapshot.docs
-          .map(d => {
-            const data = d.data();
-            return {
-              id: d.id,
-              ...data,
-              createdAt: data.createdAt?.toDate() ?? new Date(),
-              consultantId: data.consultantId || data.doctorId,
-              consultantName: data.consultantName || data.doctorId,
-            };
-          })
-          .filter(n => n.consultantId && n.consultantName);
+        const allNotes = snapshot.docs.map(d => {
+          const data = d.data();
+          return {
+            id: d.id,
+            ...data,
+            createdAt: data.createdAt?.toDate() ?? new Date(),
+          };
+        });
 
         setNotes(allNotes);
 
-        // build your unique-doctor list
+        // Build unique doctor list from notes
         const map = {};
-        allNotes.forEach(n => (map[n.consultantId] = n.consultantName));
-        setDoctors(Object.entries(map).map(([id, name]) => ({ id, name })));
+        allNotes.forEach(n => {
+          if (n.consultantId && n.consultantName) {
+            map[n.consultantId] = n.consultantName;
+          }
+        });
+        setDoctors(
+          Object.entries(map).map(([id, name]) => ({ id, name }))
+        );
 
-        setLoading(false);
+        setLoading(false); // Set loading to false once data is fetched
       },
       err => {
         console.error("Tracker snapshot error:", err);
@@ -118,10 +82,10 @@ export default function Tracker({ navigation }) {
     return () => unsubscribe();
   }, []);
 
-  // ─── Fetch per‑note AI insights ───────────────────────────────────────────────
+  // ─── Fetch AI summary for one note ───────────────────────────────────────────
   useEffect(() => {
     if (!selectedNote) return;
-    const runAI = async () => {
+    (async () => {
       setNoteSummary("");
       setNoteSummaryLoading(true);
       if (SERVER_URL.includes("YOUR_SERVER_IP")) {
@@ -144,8 +108,7 @@ export default function Tracker({ navigation }) {
       } finally {
         setNoteSummaryLoading(false);
       }
-    };
-    runAI();
+    })();
   }, [selectedNote]);
 
   // ─── Loading Indicator ────────────────────────────────────────────────────────
@@ -197,8 +160,17 @@ export default function Tracker({ navigation }) {
             "Ultrasound Findings": n.ultrasoundFindings,
           })}
 
-          {n.assessment && renderRow("Assessment", n.assessment)}
-          {n.recommendations && renderRow("Recommendations", n.recommendations)}
+          {(() => {
+            const t = n.consultationType || "unknown";
+            const assessment = n[`${t}Assessment`] ?? n.assessment;
+            const recommendations = n[`${t}Recommendations`] ?? n.recommendations;
+            return (
+              <>
+                {assessment && renderRow("Assessment", assessment)}
+                {recommendations && renderRow("Recommendations", recommendations)}
+              </>
+            );
+          })()}
         </ScrollView>
       </SafeAreaView>
     );
@@ -269,7 +241,11 @@ export default function Tracker({ navigation }) {
                 {item.createdAt.toLocaleDateString()}
               </Text>
               <Text style={styles.noteSnippet}>
-                {item.assessment?.slice(0, 60) || "Tap to view details"}
+                {(() => {
+                  const t = item.consultationType || "unknown";
+                  const a = item[`${t}Assessment`] ?? item.assessment;
+                  return a?.slice(0, 60) || "Tap to view details";
+                })()}
               </Text>
             </TouchableOpacity>
           )}

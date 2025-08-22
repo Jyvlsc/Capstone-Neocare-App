@@ -7,7 +7,6 @@ import {
   SafeAreaView,
   TextInput,
   ActivityIndicator,
-  Platform
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { getAuth, signOut } from 'firebase/auth';
@@ -17,17 +16,15 @@ import { db } from '../firebaseConfig';
 const ProfileScreen = ({ navigation }) => {
   const auth = getAuth();
   const user = auth.currentUser;
-  
+
   const [fullName, setFullName] = useState('');
-  const [dueDate, setDueDate] = useState(new Date());
-  const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [lastMenstruationDate, setLastMenstruationDate] = useState(new Date());
 
   useEffect(() => {
     if (user) {
-      setEmail(user.email);
       const fetchProfile = async () => {
         try {
           const userDocRef = doc(db, 'users', user.uid);
@@ -35,11 +32,11 @@ const ProfileScreen = ({ navigation }) => {
           if (docSnap.exists()) {
             const data = docSnap.data();
             setFullName(data.fullName || '');
-            // Handle different formats of the dueDate field from Firestore
-            if (data.dueDate && data.dueDate.toDate) { 
-              setDueDate(data.dueDate.toDate());
-            } else if(data.dueDate) {
-              setDueDate(new Date(data.dueDate.seconds * 1000));
+            // Handle lastMenstruationDate
+            if (data.lastMenstruationDate?.toDate) {
+              setLastMenstruationDate(data.lastMenstruationDate.toDate());
+            } else if (data.lastMenstruationDate?.seconds) {
+              setLastMenstruationDate(new Date(data.lastMenstruationDate.seconds * 1000));
             }
           }
         } catch (error) {
@@ -55,13 +52,6 @@ const ProfileScreen = ({ navigation }) => {
     }
   }, [user]);
 
-  const onChangeDueDate = (event, selectedDate) => {
-    setShowDatePicker(Platform.OS === 'ios'); // On iOS you may keep picker open
-    if (selectedDate) {
-      setDueDate(selectedDate);
-    }
-  };
-
   const handleUpdateProfile = async () => {
     if (!user) return;
     setUpdating(true);
@@ -69,7 +59,7 @@ const ProfileScreen = ({ navigation }) => {
       const userDocRef = doc(db, 'users', user.uid);
       await updateDoc(userDocRef, {
         fullName: fullName,
-        dueDate: dueDate,
+        lastMenstruationDate: lastMenstruationDate, // Include last menstruation date
       });
       alert('Profile updated successfully!');
     } catch (error) {
@@ -102,7 +92,7 @@ const ProfileScreen = ({ navigation }) => {
       <View style={styles.profileContainer}>
         <Text style={styles.title}>My Profile</Text>
         <Text style={styles.label}>Email:</Text>
-        <Text style={styles.info}>{email}</Text>
+        <Text style={styles.info}>{user.email}</Text>
         <Text style={styles.label}>Full Name:</Text>
         <TextInput
           style={styles.input}
@@ -111,22 +101,25 @@ const ProfileScreen = ({ navigation }) => {
           placeholder="Enter your full name"
           placeholderTextColor="#aaa"
         />
-        <Text style={styles.label}>Due Date:</Text>
+        <Text style={styles.label}>Last Menstruation Date:</Text>
         <TouchableOpacity
           style={styles.dateButton}
           onPress={() => setShowDatePicker(true)}
         >
           <Text style={styles.dateButtonText}>
-            {dueDate ? dueDate.toLocaleDateString() : 'Select Due Date'}
+            {lastMenstruationDate ? lastMenstruationDate.toLocaleDateString() : 'Select Date'}
           </Text>
         </TouchableOpacity>
         {showDatePicker && (
           <DateTimePicker
-            value={dueDate || new Date()}
+            value={lastMenstruationDate || new Date()}
             mode="date"
             display="default"
-            onChange={onChangeDueDate}
-            minimumDate={new Date()}
+            onChange={(event, selected) => {
+              if (selected) setLastMenstruationDate(selected);
+              setShowDatePicker(false);
+            }}
+            maximumDate={new Date()}
           />
         )}
         <TouchableOpacity

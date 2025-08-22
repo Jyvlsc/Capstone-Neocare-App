@@ -4,7 +4,6 @@ import {
   StyleSheet,
   ActivityIndicator,
   SafeAreaView,
-  TouchableOpacity,
   Text
 } from "react-native";
 import {
@@ -24,7 +23,6 @@ import {
 } from "firebase/firestore";
 import { db, auth } from "../firebaseConfig";
 import theme from '../src/theme';
-import commonStyles from '../src/commonStyles';
 import CustomHeader from './CustomHeader';
 
 const ChatScreen = ({ route, navigation }) => {
@@ -73,11 +71,6 @@ const ChatScreen = ({ route, navigation }) => {
     }
   }, [chatDetails]);
 
-  // Navigate to appointment
-  const handleMakeAppointment = () => {
-    navigation.navigate('AppointmentScreen', { consultant: chatDetails.consultant });
-  };
-
   // Custom message bubble
   const renderBubble = props => (
     <Bubble
@@ -119,7 +112,7 @@ const ChatScreen = ({ route, navigation }) => {
     />
   );
 
-  // Check-mark view (now transparent)
+  // Message status indicator
   const renderCustomView = props => (
     <View style={styles.statusContainer}>
       <Text style={styles.statusText}>
@@ -132,33 +125,30 @@ const ChatScreen = ({ route, navigation }) => {
   return (
     <SafeAreaView style={styles.container}>
       <CustomHeader title="Chat" navigation={navigation} />
-
       {isLoading ? (
-        <ActivityIndicator size="large" color={theme.colors.primary} style={{ flex: 1, justifyContent: 'center' }} />
+        <ActivityIndicator
+          size="large"
+          color={theme.colors.primary}
+          style={{ flex: 1, justifyContent: 'center' }}
+        />
       ) : (
-        <>
-          <TouchableOpacity style={styles.appointmentButton} onPress={handleMakeAppointment}>
-            <Text style={styles.appointmentText}>Make Appointment</Text>
-          </TouchableOpacity>
-
-          <GiftedChat
-            messages={messages}
-            onSend={onSend}
-            user={{ _id: user?.uid, name: user?.displayName }}
-            renderBubble={renderBubble}
-            renderSend={renderSend}
-            renderInputToolbar={renderInputToolbar}
-            renderCustomView={renderCustomView}
-            alwaysShowSend
-            scrollToBottom
-            renderAvatar={null}
-            placeholder="Type your message here..."
-            timeTextStyle={{
-              right: { color: '#EEE' },
-              left: { color: '#555' }
-            }}
-          />
-        </>
+        <GiftedChat
+          messages={messages}
+          onSend={onSend}
+          user={{ _id: user?.uid, name: user?.displayName }}
+          renderBubble={renderBubble}
+          renderSend={renderSend}
+          renderInputToolbar={renderInputToolbar}
+          renderCustomView={renderCustomView}
+          alwaysShowSend
+          scrollToBottom
+          renderAvatar={null}
+          placeholder="Type your message here..."
+          timeTextStyle={{
+            right: { color: '#EEE' },
+            left: { color: '#555' }
+          }}
+        />
       )}
     </SafeAreaView>
   );
@@ -193,18 +183,11 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFF',
     elevation: 2,
   },
-  appointmentButton: {
-    ...commonStyles.buttonPrimary,
-    margin: 8,
-  },
-  appointmentText: {
-    ...commonStyles.buttonText,
-  },
   statusContainer: {
     position: 'absolute',
     bottom: 6,
     right: 10,
-    backgroundColor: 'transparent',    // removed white background
+    backgroundColor: 'transparent',
   },
   statusText: {
     fontSize: 12,

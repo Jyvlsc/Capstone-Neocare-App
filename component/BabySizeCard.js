@@ -2,8 +2,19 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
 import { auth, db } from '../firebaseConfig';
 import { doc, onSnapshot } from 'firebase/firestore';
-import { getGA } from '../utils/gestationalAge';
 import { getBabySize } from '../utils/babySize';
+
+// ✅ Updated getGA function for input validation
+const getGA = (date) => {
+  const now = new Date();
+  const lmp = new Date(date);
+  if (isNaN(lmp)) return { weeks: NaN, days: NaN }; // UPDATED: Validate input
+  const diff = now - lmp;
+  const totalDays = Math.floor(diff / (1000 * 60 * 60 * 24));
+  const weeks = Math.floor(totalDays / 7);
+  const days = totalDays % 7;
+  return { weeks, days };
+};
 
 export default function BabySizeCard() {
   const [ga, setGA] = useState(null);
@@ -12,14 +23,22 @@ export default function BabySizeCard() {
   useEffect(() => {
     const uid = auth.currentUser?.uid;
     if (!uid) return;
+
     const unsub = onSnapshot(doc(db, 'users', uid), snap => {
       const data = snap.data();
-      if (data?.dueDate) {
-        const g = getGA(data.dueDate);
+
+      if (data?.lastMenstruationDate) {
+        const lmpDate =
+          typeof data.lastMenstruationDate.toDate === 'function'
+            ? data.lastMenstruationDate.toDate()
+            : new Date(data.lastMenstruationDate); // UPDATED: Properly convert Firestore Timestamp
+
+        const g = getGA(lmpDate);
         setGA(g);
         setSize(getBabySize(g.weeks));
       }
     });
+
     return unsub;
   }, []);
 
@@ -30,17 +49,17 @@ export default function BabySizeCard() {
   return (
     <View style={styles.card}>
       <Text style={styles.title}>
-        {`Week ${ga.weeks} + ${ga.days}`}
+        {`Week ${ga.weeks} + ${ga.days}`}
       </Text>
       {size.weightG ? (
         <>
           <Text style={styles.weight}>
-            {size.weightLb} lb / {size.weightG} g
+            {size.weightLb} lb / {size.weightG} g
           </Text>
           <Text style={styles.fruit}>{`≈ a ${size.fruit}`}</Text>
         </>
       ) : (
-        <Text style={styles.text}>Growth data starts at 22 weeks.</Text>
+        <Text style={styles.text}>Growth data starts at 22 weeks.</Text>
       )}
     </View>
   );

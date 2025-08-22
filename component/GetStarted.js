@@ -55,7 +55,7 @@ export default function GetStarted({ navigation }) {
     // Adjust this to where your Node server really is!
     const baseURL =
       Platform.OS === 'android'
-        ? 'http://192.168.254.115:3000'
+        ? 'http://172.16.201.190:3000'
         : 'http://localhost:3000';
     // Uncomment the line below if on a real device pointing at your PC's IP:
     // const baseURL = 'http://192.168.1.10:3000';

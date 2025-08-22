@@ -26,6 +26,7 @@ import AppointmentScreen from './component/AppointmentScreen';
 import Tracker from './component/Tracker';
 import ChatBotScreen from './component/ChatBotScreen';
 import DoctorsScreen from './component/DoctorsScreen';
+import EmergencyVerificationScreen from './component/EmergencyVerificationScreen';
 
 import {
   registerForPushNotificationsAsync,
@@ -109,7 +110,7 @@ export default function App() {
         if (!fcmToken) return;
         const user = getAuth().currentUser;
         if (!user) return;
-        fetch('https://192.168.1.11/api/users/fcm-token', {
+        fetch('https://172.16.201.190/api/users/fcm-token', {
           method:  'POST',
           headers: { 'Content-Type': 'application/json' },
           body:    JSON.stringify({
@@ -141,6 +142,7 @@ export default function App() {
         <Stack.Screen name="HomeTabs"              component={HomeTabs} />
         <Stack.Screen name="Assessment"            component={AssessmentScreen} />
         <Stack.Screen name="Register"              component={RegisterScreen} />
+        <Stack.Screen name="EmergencyVerification" component={EmergencyVerificationScreen} />
         <Stack.Screen name="Login"                 component={LoginScreen} />
         <Stack.Screen name="MoodDetail"            component={MoodDetail} />
         <Stack.Screen name="BirthingCenterLocator" component={BirthingCenterLocator} />
