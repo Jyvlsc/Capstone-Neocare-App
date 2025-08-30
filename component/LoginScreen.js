@@ -36,23 +36,8 @@ const LoginScreen = ({ navigation }) => {
     }
   };
 
-  const handleForgotPassword = async () => {
-    if (!email || !email.includes('@')) {
-      Alert.alert('Invalid email', 'Please enter your email in the email field above.');
-      return;
-    }
-    setLoading(true);
-    try {
-      await sendPasswordResetEmail(getAuth(), email);
-      Alert.alert('Email sent', 'Check your inbox for password reset instructions.');
-    } catch (error) {
-      Alert.alert('Error', error.message);
-    } finally {
-      setLoading(false);
-    }
-  };
 
-  return (
+return (
     <SafeAreaView style={styles.container}>
       <View style={styles.innerContainer}>
         <Text style={styles.title}>Login</Text>
@@ -75,7 +60,7 @@ const LoginScreen = ({ navigation }) => {
           value={password}
           onChangeText={setPassword}
         />
-        <TouchableOpacity onPress={handleForgotPassword}>
+        <TouchableOpacity onPress={() => navigation.navigate("Forgetpass")}>
           <Text style={styles.forgotText}>Forgot Password?</Text>
         </TouchableOpacity>
         <TouchableOpacity 

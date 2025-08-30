@@ -17,6 +17,7 @@ import ProfileScreen from './component/ProfileScreen';
 import AssessmentScreen from './component/AssessmentScreen';
 import RegisterScreen from './component/RegisterScreen';
 import LoginScreen from './component/LoginScreen';
+import Forgetpass from "./component/Forgetpass";
 import MoodDetail from './component/MoodDetail';
 import BirthingCenterLocator from './component/BirthingCenterLocator';
 import ConsultantScreen from './component/ConsultantScreen';
@@ -27,6 +28,7 @@ import Tracker from './component/Tracker';
 import ChatBotScreen from './component/ChatBotScreen';
 import DoctorsScreen from './component/DoctorsScreen';
 import EmergencyVerificationScreen from './component/EmergencyVerificationScreen';
+
 
 import {
   registerForPushNotificationsAsync,
@@ -142,6 +144,7 @@ export default function App() {
         <Stack.Screen name="HomeTabs"              component={HomeTabs} />
         <Stack.Screen name="Assessment"            component={AssessmentScreen} />
         <Stack.Screen name="Register"              component={RegisterScreen} />
+        <Stack.Screen name="Forgetpass"             component={Forgetpass} />
         <Stack.Screen name="EmergencyVerification" component={EmergencyVerificationScreen} />
         <Stack.Screen name="Login"                 component={LoginScreen} />
         <Stack.Screen name="MoodDetail"            component={MoodDetail} />
