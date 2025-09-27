@@ -25,7 +25,7 @@ import CustomHeader from './CustomHeader';
 export default function BookingsScreen({ navigation }) {
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState('upcoming'); // upcoming | unpaid | complete
+  const [filter, setFilter] = useState('upcoming');
 
   useEffect(() => {
     const q = query(
@@ -36,7 +36,6 @@ export default function BookingsScreen({ navigation }) {
       try {
         const enriched = await Promise.all(snap.docs.map(async d => {
           const b = { id: d.id, ...d.data() };
-          // doctor name
           let name = '';
           if (b.consultantId) {
             const docSnap = await getDoc(doc(db, 'consultants', b.consultantId));
@@ -62,7 +61,6 @@ export default function BookingsScreen({ navigation }) {
 
   const now = moment().tz('Asia/Manila');
 
-  // helper to combine date + hour into a moment
   const getApptMoment = b => {
     if (!b.date) return null;
     const dateObj = b.date.toDate?.() ?? new Date(b.date);
@@ -73,21 +71,16 @@ export default function BookingsScreen({ navigation }) {
     return moment(dateObj).tz('Asia/Manila').hour(h).minute(m);
   };
 
-  // produce filtered list
   const filtered = bookings.filter(b => {
     const appt = getApptMoment(b);
-
     if (filter === 'unpaid') {
       return b.status === 'accepted'
         && b.paymentStatus === 'unpaid'
         && appt && appt.isSameOrAfter(now);
     }
-
     if (filter === 'complete') {
       return appt && appt.isBefore(now) && b.paymentStatus === 'paid';
     }
-
-    // upcoming
     return appt && appt.isSameOrAfter(now) &&
       (b.status === 'pending' || b.paymentStatus === 'paid');
   });
@@ -98,7 +91,7 @@ export default function BookingsScreen({ navigation }) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          amount:    booking.amount,
+          amount: booking.amount,
           bookingId: booking.id
         }),
       });
@@ -126,25 +119,28 @@ export default function BookingsScreen({ navigation }) {
   const renderItem = ({ item }) => {
     const appt = getApptMoment(item);
     const dateStr = appt ? appt.format('LL') : 'Unknown';
-    const timeStr = appt ? appt.format('HH:mm') : item.hour || '';
+    const timeStr = appt ? appt.format('hh:mm A') : item.hour || '';
 
     return (
       <View style={styles.card}>
         <Text style={styles.title}>Dr. {item.doctorName}</Text>
-        <Text style={styles.details}>📅 {dateStr} @ {timeStr}</Text>
-        <Text style={styles.status}>
-          Status: <Text style={{fontWeight:'bold'}}>{item.status}</Text>
-        </Text>
-        <Text style={styles.status}>
-          Payment: <Text style={{fontWeight:'bold'}}>{item.paymentStatus}</Text>
-        </Text>
+        <Text style={styles.details}>📅 {dateStr} • 🕒 {timeStr}</Text>
+
+        <View style={styles.badgesRow}>
+          <View style={[styles.badge, { backgroundColor: '#E8F0FE' }]}>
+            <Text style={styles.badgeText}>Status: {item.status}</Text>
+          </View>
+          <View style={[styles.badge, { backgroundColor: item.paymentStatus === 'paid' ? '#D4EDDA' : '#FFF3CD' }]}>
+            <Text style={styles.badgeText}>Payment: {item.paymentStatus}</Text>
+          </View>
+        </View>
 
         {filter === 'upcoming' && item.status === 'pending' && (
           <TouchableOpacity
             style={styles.cancelBtn}
             onPress={() => handleCancel(item)}
           >
-            <Text style={styles.cancelText}>Cancel</Text>
+            <Text style={styles.cancelText}>Cancel Appointment</Text>
           </TouchableOpacity>
         )}
 
@@ -154,14 +150,14 @@ export default function BookingsScreen({ navigation }) {
             onPress={() => handlePay(item)}
           >
             <Text style={styles.payText}>
-              Pay ₱{(item.amount/100).toFixed(2)}
+              Pay ₱{(item.amount / 100).toFixed(2)}
             </Text>
           </TouchableOpacity>
         )}
 
         {filter === 'complete' && (
           item.rating
-            ? <Text style={styles.completed}>Your Rating: {item.rating} ★</Text>
+            ? <Text style={styles.completed}>⭐ Your Rating: {item.rating}</Text>
             : (
               <>
                 <Rating
@@ -183,7 +179,7 @@ export default function BookingsScreen({ navigation }) {
                     }
                   }}
                 >
-                  <Text style={styles.submitText}>Submit</Text>
+                  <Text style={styles.submitText}>Submit Rating</Text>
                 </TouchableOpacity>
               </>
             )
@@ -195,7 +191,8 @@ export default function BookingsScreen({ navigation }) {
   if (loading) {
     return (
       <View style={styles.center}>
-        <ActivityIndicator size="large" />
+        <ActivityIndicator size="large" color={theme.colors.primary || '#007AFF'} />
+        <Text style={{ marginTop: 10 }}>Loading your appointments...</Text>
       </View>
     );
   }
@@ -205,31 +202,31 @@ export default function BookingsScreen({ navigation }) {
       <CustomHeader title="My Appointments" navigation={navigation} />
 
       <View style={styles.tabs}>
-        {['upcoming','unpaid','complete'].map(s => (
+        {['upcoming', 'unpaid', 'complete'].map(s => (
           <TouchableOpacity
             key={s}
-            style={[styles.tab, filter===s && styles.activeTab]}
-            onPress={()=>setFilter(s)}
+            style={[styles.tab, filter === s && styles.activeTab]}
+            onPress={() => setFilter(s)}
           >
-            <Text style={filter===s ? styles.activeText : styles.tabText}>
-              {s.charAt(0).toUpperCase()+s.slice(1)}
+            <Text style={filter === s ? styles.activeText : styles.tabText}>
+              {s.charAt(0).toUpperCase() + s.slice(1)}
             </Text>
           </TouchableOpacity>
         ))}
       </View>
 
-      {filtered.length===0 ? (
+      {filtered.length === 0 ? (
         <View style={styles.center}>
           <Text style={styles.noText}>
-            {filter==='upcoming' && 'No upcoming appointments.'}
-            {filter==='unpaid' && 'No payments due.'}
-            {filter==='complete' && 'No completed appointments.'}
+            {filter === 'upcoming' && 'No upcoming appointments.'}
+            {filter === 'unpaid' && 'No unpaid appointments.'}
+            {filter === 'complete' && 'No completed appointments yet.'}
           </Text>
         </View>
       ) : (
         <FlatList
           data={filtered}
-          keyExtractor={b=>b.id}
+          keyExtractor={b => b.id}
           renderItem={renderItem}
           contentContainerStyle={styles.list}
         />
@@ -240,76 +237,100 @@ export default function BookingsScreen({ navigation }) {
 
 const styles = StyleSheet.create({
   safeArea: {
-    flex:1,
-    backgroundColor:theme.colors.background||'#F5F5F5'
+    flex: 1,
+    backgroundColor: '#F9FAFB',
   },
   tabs: {
-    flexDirection:'row',
-    justifyContent:'space-around',
-    marginVertical:10
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    marginVertical: 12,
+    paddingHorizontal: 10,
   },
-  tab: { padding:8, borderRadius:5 },
-  activeTab: { backgroundColor:'#D47FA6' },
-  tabText: { color:'#000' },
-  activeText: { color:'#fff' },
-
-  list: { paddingHorizontal:15, paddingBottom:20 },
-  noText: { fontSize:16, color:theme.colors.textSecondary||'#666' },
+  tab: {
+    paddingVertical: 8,
+    paddingHorizontal: 18,
+    borderRadius: 20,
+    backgroundColor: '#E5E7EB',
+  },
+  activeTab: {
+    backgroundColor: '#D47FA6',
+  },
+  tabText: {
+    color: '#374151',
+    fontWeight: '500',
+  },
+  activeText: {
+    color: '#fff',
+    fontWeight: '600',
+  },
+  list: { paddingHorizontal: 15, paddingBottom: 20 },
+  noText: { fontSize: 16, color: '#6B7280', textAlign: 'center', marginTop: 20 },
 
   card: {
-    ...commonStyles.card,
-    backgroundColor:'#fff',
-    padding:15,
-    marginVertical:8
+    backgroundColor: '#fff',
+    padding: 16,
+    borderRadius: 12,
+    shadowColor: '#000',
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
+    elevation: 2,
+    marginVertical: 8,
   },
   title: {
-    fontSize:18,fontWeight:'bold',
-    color:theme.colors.textPrimary||'#333'
+    fontSize: 18, fontWeight: '600', color: '#111827',
   },
   details: {
-    fontSize:16,marginVertical:4,
-    color:theme.colors.textPrimary||'#333'
+    fontSize: 15, marginVertical: 6, color: '#374151',
   },
-  status: {
-    fontSize:14,
-    color:theme.colors.textSecondary||'#666'
+  badgesRow: {
+    flexDirection: 'row',
+    marginVertical: 6,
+    gap: 8,
   },
-
+  badge: {
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 8,
+  },
+  badgeText: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: '#333',
+  },
   cancelBtn: {
-    marginTop:12,
-    backgroundColor:'#FF6B6B',
-    padding:8,
-    borderRadius:5,
-    alignSelf:'flex-start'
+    marginTop: 12,
+    backgroundColor: '#EF4444',
+    paddingVertical: 10,
+    borderRadius: 8,
+    alignItems: 'center',
   },
-  cancelText: { color:'#fff', fontWeight:'600' },
+  cancelText: { color: '#fff', fontWeight: '600' },
 
   payButton: {
-    marginTop:12,
-    backgroundColor:theme.colors.primary||'#007AFF',
-    padding:10,
-    borderRadius:6,
-    alignItems:'center'
+    marginTop: 12,
+    backgroundColor: '#3B82F6',
+    paddingVertical: 10,
+    borderRadius: 8,
+    alignItems: 'center',
   },
-  payText: { color:'#fff', fontWeight:'600' },
+  payText: { color: '#fff', fontWeight: '600' },
 
   completed: {
-    marginTop:12,
-    color:'#28A745',
-    fontSize:16,
-    fontWeight:'bold'
+    marginTop: 12,
+    color: '#16A34A',
+    fontSize: 15,
+    fontWeight: '600',
   },
-
   submitBtn: {
-    marginTop:8,
-    backgroundColor:'#D47FA6',
-    padding:8,
-    borderRadius:5,
-    alignSelf:'flex-start'
+    marginTop: 8,
+    backgroundColor: '#D47FA6',
+    paddingVertical: 8,
+    borderRadius: 8,
+    alignItems: 'center',
   },
-  submitText: { color:'#fff', fontWeight:'600' },
+  submitText: { color: '#fff', fontWeight: '600' },
 
   center: {
-    flex:1,justifyContent:'center',alignItems:'center'
+    flex: 1, justifyContent: 'center', alignItems: 'center',
   },
 });

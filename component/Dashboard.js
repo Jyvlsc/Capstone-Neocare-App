@@ -1,5 +1,3 @@
-// src/screens/Dashboard.js
-
 import React, { useEffect, useState } from 'react';
 import {
   StyleSheet,
@@ -10,6 +8,8 @@ import {
   ScrollView,
   FlatList,
   ActivityIndicator,
+  BackHandler, 
+  Alert,
 } from 'react-native';
 import { db, auth } from '../firebaseConfig';
 import { collection, doc, getDoc, query, where, onSnapshot } from 'firebase/firestore';
@@ -30,6 +30,16 @@ export default function Dashboard({ navigation }) {
   const [fullName, setFullName] = useState(null);
   const [appointments, setAppointments] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  // 🔒 Disable Android back button
+  useEffect(() => {
+    const backHandler = BackHandler.addEventListener(
+      "hardwareBackPress",
+      () => true // Returning true means "do nothing"
+    );
+
+    return () => backHandler.remove();
+  }, []);
 
   // Fetch the user's fullName from Firestore
   useEffect(() => {
@@ -148,7 +158,6 @@ export default function Dashboard({ navigation }) {
               {fullName || auth.currentUser?.displayName || 'User'}
             </Text>
           </View>
-          
         </View>
 
         <BabySizeCard />
@@ -204,7 +213,6 @@ export default function Dashboard({ navigation }) {
     </SafeAreaView>
   );
 }
-
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: theme.colors.background },
   container: { padding: 15, paddingBottom: 80 },

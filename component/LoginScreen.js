@@ -5,11 +5,10 @@ import {
   TextInput, 
   TouchableOpacity, 
   StyleSheet, 
-  Alert, 
   ActivityIndicator,
   SafeAreaView 
 } from 'react-native';
-import { getAuth, signInWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth';
+import { getAuth, signInWithEmailAndPassword } from 'firebase/auth';
 
 const LoginScreen = ({ navigation }) => {
   const [email, setEmail] = useState('');
@@ -20,29 +19,57 @@ const LoginScreen = ({ navigation }) => {
   const handleLogin = async () => {
     setErrorMessage(null);
     setLoading(true);
+
     try {
+      // Basic checks before hitting Firebase
+      if (!email) {
+        setErrorMessage('Email is required.');
+        setLoading(false);
+        return;
+      }
       if (!email.includes('@')) {
         setErrorMessage('Please enter a valid email address.');
         setLoading(false);
         return;
       }
+      if (!password) {
+        setErrorMessage('Password is required.');
+        setLoading(false);
+        return;
+      }
+
       const auth = getAuth();
       await signInWithEmailAndPassword(auth, email, password);
       navigation.navigate('GetStarted');
     } catch (error) {
-      Alert.alert('Login failed', error.message);
+      
+      switch (error.code) {
+        case 'auth/invalid-email':
+          setErrorMessage('The email address is not valid.');
+          break;
+        case 'auth/user-not-found':
+          setErrorMessage('No account found with this email.');
+          break;
+        case 'auth/wrong-password':
+          setErrorMessage('Incorrect password. Please try again.');
+          break;
+        default:
+          setErrorMessage('Login failed. Please try again.');
+          break;
+      }
     } finally {
       setLoading(false);
     }
   };
 
-
-return (
+  return (
     <SafeAreaView style={styles.container}>
       <View style={styles.innerContainer}>
         <Text style={styles.title}>Login</Text>
         <Text style={styles.subtitle}>Please sign in to continue</Text>
+
         {errorMessage && <Text style={styles.errorText}>{errorMessage}</Text>}
+
         <TextInput
           style={styles.input}
           placeholder="Email"
@@ -60,9 +87,11 @@ return (
           value={password}
           onChangeText={setPassword}
         />
+
         <TouchableOpacity onPress={() => navigation.navigate("Forgetpass")}>
           <Text style={styles.forgotText}>Forgot Password?</Text>
         </TouchableOpacity>
+
         <TouchableOpacity 
           style={[styles.button, loading && styles.buttonDisabled]}
           onPress={handleLogin}
@@ -74,10 +103,11 @@ return (
             <Text style={styles.buttonText}>Login</Text>
           )}
         </TouchableOpacity>
+
         <View style={styles.socialLogin}>
           <Text style={styles.socialText}>or</Text>
-          {/* Social login buttons can be added here */}
         </View>
+
         <TouchableOpacity onPress={() => navigation.navigate('Register')}>
           <Text style={styles.link}>Don't have an account? Sign Up</Text>
         </TouchableOpacity>
@@ -161,4 +191,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default LoginScreen; 
+export default LoginScreen;

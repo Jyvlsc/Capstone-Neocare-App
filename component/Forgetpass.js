@@ -10,6 +10,7 @@ import {
   SafeAreaView,
 } from "react-native";
 import { getAuth, sendPasswordResetEmail } from "firebase/auth";
+import { getFirestore, collection, query, where, getDocs } from "firebase/firestore";
 
 const ForgetPass = ({ navigation }) => {
   const [email, setEmail] = useState("");
@@ -23,13 +24,27 @@ const ForgetPass = ({ navigation }) => {
 
     setLoading(true);
     const auth = getAuth();
+    const db = getFirestore();
+
     try {
+    
+      const usersRef = collection(db, "users"); 
+      const q = query(usersRef, where("email", "==", email));
+      const querySnapshot = await getDocs(q);
+
+      if (querySnapshot.empty) {
+        Alert.alert("Not Found", "This email is not registered.");
+        setLoading(false);
+        return;
+      }
+
+      
       await sendPasswordResetEmail(auth, email);
       Alert.alert(
         "Success",
         "Password reset link sent! Please check your email."
       );
-      navigation.navigate("Login"); // Go back to login after success
+      navigation.navigate("Login"); 
     } catch (error) {
       Alert.alert("Error", error.message);
     } finally {
