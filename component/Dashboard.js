@@ -8,7 +8,6 @@ import {
   ScrollView,
   FlatList,
   ActivityIndicator,
-  BackHandler, 
   Alert,
 } from 'react-native';
 import { db, auth } from '../firebaseConfig';
@@ -31,15 +30,7 @@ export default function Dashboard({ navigation }) {
   const [appointments, setAppointments] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // 🔒 Disable Android back button
-  useEffect(() => {
-    const backHandler = BackHandler.addEventListener(
-      "hardwareBackPress",
-      () => true // Returning true means "do nothing"
-    );
-
-    return () => backHandler.remove();
-  }, []);
+ 
 
   // Fetch the user's fullName from Firestore
   useEffect(() => {

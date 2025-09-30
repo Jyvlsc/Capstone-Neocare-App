@@ -135,21 +135,6 @@ export default function Tracker({ navigation }) {
         <Text style={styles.backText}>← Back to notes</Text>
       </TouchableOpacity>
 
-      {/* Header Card */}
-      <View style={styles.headerCard}>
-        <Text style={styles.headerTitle}>{n.consultantName || "Unknown Doctor"}</Text>
-        <Text style={styles.headerSubtitle}>
-          {n.consultationType
-            ? n.consultationType.charAt(0).toUpperCase() +
-              n.consultationType.slice(1)
-            : "Consultation"}
-        </Text>
-        <Text style={styles.headerDate}>
-          {n.createdAt.toLocaleDateString()} at{" "}
-          {n.createdAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-        </Text>
-      </View>
-
       {/* AI Insights Card */}
       {noteSummaryLoading ? (
         <ActivityIndicator
