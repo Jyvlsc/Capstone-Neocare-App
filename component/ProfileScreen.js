@@ -8,13 +8,16 @@ import {
   TextInput,
   ActivityIndicator,
   Image,
+  Alert,
+  ScrollView,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { getAuth, signOut } from 'firebase/auth';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
-import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
+import { LinearGradient } from 'expo-linear-gradient';
 
 const ProfileScreen = ({ navigation }) => {
   const auth = getAuth();
@@ -27,6 +30,7 @@ const ProfileScreen = ({ navigation }) => {
   const [updating, setUpdating] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [lastMenstruationDate, setLastMenstruationDate] = useState(new Date());
+  const [oldPhotoUrl, setOldPhotoUrl] = useState(null);
 
   useEffect(() => {
     if (user) {
@@ -38,13 +42,11 @@ const ProfileScreen = ({ navigation }) => {
             const data = docSnap.data();
             setFullName(data.fullName || '');
             setProfilePhoto(data.profilePhoto || null);
-
+            setOldPhotoUrl(data.profilePhoto || null);
             if (data.lastMenstruationDate?.toDate) {
               setLastMenstruationDate(data.lastMenstruationDate.toDate());
             } else if (data.lastMenstruationDate?.seconds) {
-              setLastMenstruationDate(
-                new Date(data.lastMenstruationDate.seconds * 1000)
-              );
+              setLastMenstruationDate(new Date(data.lastMenstruationDate.seconds * 1000));
             }
           }
         } catch (error) {
@@ -53,19 +55,32 @@ const ProfileScreen = ({ navigation }) => {
           setLoading(false);
         }
       };
-
       fetchProfile();
     } else {
       setLoading(false);
     }
   }, [user]);
 
-  const pickImage = async () => {
+  const handleChoosePhoto = () => {
+    Alert.alert('Select Photo', 'Choose an option:', [
+      { text: 'Camera', onPress: openCamera },
+      { text: 'Gallery', onPress: openGallery },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
+  };
+
+  const openGallery = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permission Denied', 'You need to allow gallery access.');
+      return;
+    }
+
     const result = await ImagePicker.launchImageLibraryAsync({
-     mediaTypes: [ImagePicker.MediaType.all],
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true,
       aspect: [1, 1],
-      quality: 0.7,
+      quality: 0.8,
     });
 
     if (!result.canceled) {
@@ -73,14 +88,46 @@ const ProfileScreen = ({ navigation }) => {
     }
   };
 
-  const uploadImage = async (uri) => {
+  const openCamera = async () => {
+    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permission Denied', 'You need to allow camera access.');
+      return;
+    }
+
+    const result = await ImagePicker.launchCameraAsync({
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.8,
+    });
+
+    if (!result.canceled) {
+      setProfilePhoto(result.assets[0].uri);
+    }
+  };
+
+  const uploadImage = async (uri, oldUrl) => {
     if (!uri) return null;
     try {
+      if (oldUrl) {
+        try {
+          const match = oldUrl.match(/\/o\/(.*?)\?/);
+          if (match && match[1]) {
+            const filePath = decodeURIComponent(match[1]);
+            await deleteObject(ref(storage, filePath));
+          }
+        } catch (err) {
+          console.warn('Old photo not found or already deleted.');
+        }
+      }
+
       const response = await fetch(uri);
       const blob = await response.blob();
-      const storageRef = ref(storage, `profilePhotos/${user.uid}.jpg`);
+      const uniqueId = Date.now();
+      const storageRef = ref(storage, `profilePhotos/${user.uid}_${uniqueId}.jpg`);
       await uploadBytes(storageRef, blob);
       const downloadURL = await getDownloadURL(storageRef);
+
       return downloadURL;
     } catch (error) {
       console.error('Upload image error:', error);
@@ -93,10 +140,8 @@ const ProfileScreen = ({ navigation }) => {
     setUpdating(true);
     try {
       let photoURL = profilePhoto;
-
-      // If it's a local file URI, upload first
       if (profilePhoto && profilePhoto.startsWith('file')) {
-        photoURL = await uploadImage(profilePhoto);
+        photoURL = await uploadImage(profilePhoto, oldPhotoUrl);
       }
 
       const userDocRef = doc(db, 'users', user.uid);
@@ -106,10 +151,11 @@ const ProfileScreen = ({ navigation }) => {
         profilePhoto: photoURL || null,
       });
 
-      alert('Profile updated successfully!');
+      setOldPhotoUrl(photoURL);
+      Alert.alert('Success', 'Profile updated successfully!');
     } catch (error) {
       console.error('Profile update error:', error);
-      alert('Error updating profile.');
+      Alert.alert('Error', 'There was a problem updating your profile.');
     } finally {
       setUpdating(false);
     }
@@ -134,108 +180,130 @@ const ProfileScreen = ({ navigation }) => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.profileContainer}>
-        <Text style={styles.title}>My Profile</Text>
-
-        {/* Profile Photo */}
-        <TouchableOpacity onPress={pickImage} style={styles.photoWrapper}>
-          <Image
-            source={
-              profilePhoto
-                ? { uri: profilePhoto }
-                : require('../assets/default-avatar.png')
-            }
-            style={styles.profilePhoto}
-          />
-          <Text style={styles.changePhotoText}>Change Photo</Text>
-        </TouchableOpacity>
-
-        {/* Email */}
-        <Text style={styles.label}>Email:</Text>
-        <Text style={styles.info}>{user.email}</Text>
-
-        {/* Full Name */}
-        <Text style={styles.label}>Full Name:</Text>
-        <TextInput
-          style={styles.input}
-          value={fullName}
-          onChangeText={setFullName}
-          placeholder="Enter your full name"
-          placeholderTextColor="#aaa"
-        />
-
-        {/* Last Menstruation Date */}
-        <Text style={styles.label}>Last Menstruation Date:</Text>
-        <TouchableOpacity
-          style={styles.dateButton}
-          onPress={() => setShowDatePicker(true)}
+      <ScrollView showsVerticalScrollIndicator={false}>
+        <LinearGradient
+          colors={['#D47FA6', '#FF6F61']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.header}
         >
-          <Text style={styles.dateButtonText}>
-            {lastMenstruationDate
-              ? lastMenstruationDate.toLocaleDateString()
-              : 'Select Date'}
-          </Text>
-        </TouchableOpacity>
-        {showDatePicker && (
-          <DateTimePicker
-            value={lastMenstruationDate || new Date()}
-            mode="date"
-            display="default"
-            onChange={(event, selected) => {
-              if (selected) setLastMenstruationDate(selected);
-              setShowDatePicker(false);
-            }}
-            maximumDate={new Date()}
-          />
-        )}
+          <Text style={styles.headerTitle}>My Profile</Text>
+        </LinearGradient>
 
-        {/* Update Button */}
-        <TouchableOpacity
-          style={[styles.button, updating && styles.buttonDisabled]}
-          onPress={handleUpdateProfile}
-          disabled={updating}
-        >
-          {updating ? (
-            <ActivityIndicator color="#fff" />
-          ) : (
-            <Text style={styles.buttonText}>Update Profile</Text>
-          )}
-        </TouchableOpacity>
+        <View style={styles.card}>
+          <TouchableOpacity onPress={handleChoosePhoto} style={styles.photoWrapper}>
+            <Image
+              source={profilePhoto ? { uri: profilePhoto } : require('../assets/default-avatar.png')}
+              style={styles.profilePhoto}
+            />
+            <Text style={styles.changePhotoText}>Change Photo</Text>
+          </TouchableOpacity>
 
-        {/* Logout Button */}
-        <TouchableOpacity style={styles.logoutButton} onPress={handleSignOut}>
-          <Text style={styles.logoutButtonText}>Logout</Text>
-        </TouchableOpacity>
-      </View>
+          <View style={styles.infoSection}>
+            <Text style={styles.label}>Email</Text>
+            <Text style={styles.info}>{user.email}</Text>
+
+            <Text style={styles.label}>Full Name</Text>
+            <TextInput
+              style={styles.input}
+              value={fullName}
+              onChangeText={setFullName}
+              placeholder="Enter your full name"
+              placeholderTextColor="#aaa"
+            />
+
+            <Text style={styles.label}>Last Menstruation Date</Text>
+            <TouchableOpacity
+              style={styles.dateButton}
+              onPress={() => setShowDatePicker(true)}
+            >
+              <Text style={styles.dateButtonText}>
+                {lastMenstruationDate
+                  ? lastMenstruationDate.toLocaleDateString()
+                  : 'Select Date'}
+              </Text>
+            </TouchableOpacity>
+
+            {showDatePicker && (
+              <DateTimePicker
+                value={lastMenstruationDate || new Date()}
+                mode="date"
+                display="default"
+                onChange={(event, selected) => {
+                  if (selected) setLastMenstruationDate(selected);
+                  setShowDatePicker(false);
+                }}
+                maximumDate={new Date()}
+              />
+            )}
+
+            <TouchableOpacity
+              style={[styles.updateButton, updating && styles.buttonDisabled]}
+              onPress={handleUpdateProfile}
+              disabled={updating}
+            >
+              <LinearGradient
+                colors={['#FF6F61', '#D47FA6']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.updateButtonGradient}
+              >
+                {updating ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text style={styles.updateButtonText}>Update Profile</Text>
+                )}
+              </LinearGradient>
+            </TouchableOpacity>
+
+            <TouchableOpacity onPress={handleSignOut} activeOpacity={0.9}>
+              <LinearGradient
+                colors={['#D47FA6', '#FF6F61']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.logoutBtn}
+              >
+                <Text style={styles.logoutBtnText}>Logout</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </ScrollView>
     </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#FFF4E6',
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-  },
-  profileContainer: {
-    width: '100%',
-    backgroundColor: '#fff',
-    borderRadius: 15,
+  container: { flex: 1, backgroundColor: '#FFF8F0' },
+  header: {
+    height: 140,
+    justifyContent: 'flex-end',
     padding: 20,
-    elevation: 4,
-    alignItems: 'center',
+    borderBottomLeftRadius: 40,
+    borderBottomRightRadius: 40,
+    elevation: 8,
   },
-  title: {
-    fontSize: 28,
-    color: '#D47FA6',
+  headerTitle: {
+    fontSize: 26,
     fontWeight: 'bold',
-    marginBottom: 20,
+    color: '#fff',
+    marginBottom: 10,
+  },
+  card: {
+    marginTop: -60,
+    marginHorizontal: 20,
+    backgroundColor: '#fff',
+    borderRadius: 20,
+    paddingVertical: 25,
+    paddingHorizontal: 20,
+    elevation: 6,
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
   },
   photoWrapper: {
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: 15,
   },
   profilePhoto: {
     width: 120,
@@ -250,75 +318,67 @@ const styles = StyleSheet.create({
     color: '#FF6F61',
     fontWeight: '600',
   },
+  infoSection: { marginTop: 10 },
   label: {
-    fontSize: 18,
-    color: '#333',
-    alignSelf: 'flex-start',
-    marginBottom: 5,
+    fontSize: 16,
+    color: '#555',
+    fontWeight: '600',
+    marginTop: 10,
   },
   info: {
-    fontSize: 16,
-    color: '#666',
-    alignSelf: 'flex-start',
-    marginBottom: 15,
+    fontSize: 15,
+    color: '#777',
+    marginBottom: 8,
   },
   input: {
     width: '100%',
     borderWidth: 1,
     borderColor: '#D47FA6',
-    borderRadius: 10,
-    padding: 15,
-    marginBottom: 15,
+    borderRadius: 12,
+    padding: 12,
     backgroundColor: '#fff',
-    color: '#333',
+    marginBottom: 10,
+    elevation: 2,
   },
   dateButton: {
     backgroundColor: '#D47FA6',
-    padding: 12,
-    borderRadius: 10,
-    marginBottom: 20,
+    paddingVertical: 12,
+    borderRadius: 12,
     alignItems: 'center',
-    width: '100%',
+    marginBottom: 20,
   },
   dateButtonText: {
     color: '#fff',
     fontWeight: 'bold',
-    fontSize: 16,
   },
-  button: {
+  updateButton: {
     width: '100%',
-    backgroundColor: '#FF6F61',
-    paddingVertical: 15,
-    borderRadius: 10,
-    alignItems: 'center',
+    borderRadius: 12,
+    overflow: 'hidden',
     marginBottom: 15,
   },
-  buttonDisabled: {
-    backgroundColor: '#a88aa8',
+  updateButtonGradient: {
+    paddingVertical: 15,
+    alignItems: 'center',
+    borderRadius: 12,
   },
-  buttonText: {
-    color: '#FFFFFF',
+  updateButtonText: {
+    color: '#fff',
     fontWeight: 'bold',
     fontSize: 16,
   },
- logoutBtn: {
-  width: '100%',
-  backgroundColor: '#FF6F61',
-  paddingVertical: 15,
-  borderRadius: 10,
-  alignItems: 'center',
-  marginTop: 15,
-  elevation: 3, // shadow for Android
-  shadowColor: '#000', // shadow for iOS
-  shadowOffset: { width: 0, height: 2 },
-  shadowOpacity: 0.2,
-  shadowRadius: 3,
-},
-logoutBtnText: {
-  color: '#fff',
-  fontSize: 16,
-  fontWeight: 'bold',
-},
+  logoutBtn: {
+    width: '100%',
+    paddingVertical: 15,
+    borderRadius: 12,
+    alignItems: 'center',
+    elevation: 3,
+  },
+  logoutBtnText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',

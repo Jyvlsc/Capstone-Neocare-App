@@ -27,8 +27,8 @@ const ForgetPass = ({ navigation }) => {
     const db = getFirestore();
 
     try {
-    
-      const usersRef = collection(db, "users"); 
+      // Check if email exists in Firestore
+      const usersRef = collection(db, "users");
       const q = query(usersRef, where("email", "==", email));
       const querySnapshot = await getDocs(q);
 
@@ -38,13 +38,10 @@ const ForgetPass = ({ navigation }) => {
         return;
       }
 
-      
+      // Send reset email
       await sendPasswordResetEmail(auth, email);
-      Alert.alert(
-        "Success",
-        "Password reset link sent! Please check your email."
-      );
-      navigation.navigate("Login"); 
+      Alert.alert("Success", "Password reset link sent! Please check your email.");
+      navigation.navigate("Login");
     } catch (error) {
       Alert.alert("Error", error.message);
     } finally {
@@ -54,7 +51,7 @@ const ForgetPass = ({ navigation }) => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.innerContainer}>
+      <View style={styles.card}>
         <Text style={styles.title}>Forgot Password</Text>
         <Text style={styles.subtitle}>Enter your email to reset password</Text>
 
@@ -92,11 +89,20 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#FFF4E6",
-  },
-  innerContainer: {
-    flex: 1,
     justifyContent: "center",
-    paddingHorizontal: 20,
+    alignItems: "center",
+    padding: 20,
+  },
+  card: {
+    width: "100%",
+    backgroundColor: "#fff",
+    borderRadius: 16,
+    padding: 20,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 5, // for Android shadow
   },
   title: {
     fontSize: 28,
