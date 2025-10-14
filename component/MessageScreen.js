@@ -10,8 +10,9 @@ import {
   ActivityIndicator,
   RefreshControl,
   SafeAreaView,
-  Image
+  Image,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation } from '@react-navigation/native';
 import {
   collection,
@@ -22,7 +23,7 @@ import {
   getDoc,
   getDocs,
   limit,
-  doc
+  doc,
 } from 'firebase/firestore';
 import { db, auth } from '../firebaseConfig';
 import CustomHeader from './CustomHeader';
@@ -36,7 +37,7 @@ const MessageScreen = () => {
   const user = auth.currentUser;
 
   const subscribeChats = useCallback(
-    userId => {
+    (userId) => {
       const q = query(
         collection(db, 'chats'),
         where('participants', 'array-contains', userId),
@@ -45,14 +46,13 @@ const MessageScreen = () => {
 
       return onSnapshot(
         q,
-        snapshot => {
+        (snapshot) => {
           (async () => {
             const convs = await Promise.all(
-              snapshot.docs.map(async chatDoc => {
+              snapshot.docs.map(async (chatDoc) => {
                 const chat = chatDoc.data();
-                const otherId = chat.participants.find(id => id !== userId);
+                const otherId = chat.participants.find((id) => id !== userId);
 
-                // Try fetching from 'users'
                 let name = '';
                 let avatar = null;
                 try {
@@ -62,11 +62,8 @@ const MessageScreen = () => {
                     name = u.fullName || u.displayName || u.email || '';
                     avatar = u.photoURL || null;
                   }
-                } catch (e) {
-                  console.warn('User fetch error', e);
-                }
+                } catch {}
 
-                // If still no name, try 'consultants'
                 if (!name) {
                   try {
                     const consSnap = await getDoc(doc(db, 'consultants', otherId));
@@ -75,18 +72,14 @@ const MessageScreen = () => {
                       name = c.name || '';
                       avatar = c.profilePhoto || avatar;
                     }
-                  } catch (e) {
-                    console.warn('Consultant fetch error', e);
-                  }
+                  } catch {}
                 }
 
-                // Final fallback to ID
                 if (!name) name = otherId;
 
-                // Fetch last message if needed
                 let lastMessage = chat.lastMessageText || '';
-                let timestamp =
-                  chat.lastUpdated?.toDate() || chat.createdAt?.toDate();
+                let timestamp = chat.lastUpdated?.toDate() || chat.createdAt?.toDate();
+
                 if (!lastMessage) {
                   const msgsSnap = await getDocs(
                     query(
@@ -108,7 +101,7 @@ const MessageScreen = () => {
                   name,
                   avatar,
                   lastMessage,
-                  timestamp
+                  timestamp,
                 };
               })
             );
@@ -118,7 +111,7 @@ const MessageScreen = () => {
             setRefreshing(false);
           })();
         },
-        error => {
+        (error) => {
           console.error('Chat subscription error', error);
           setLoading(false);
           setRefreshing(false);
@@ -142,16 +135,16 @@ const MessageScreen = () => {
     if (user) subscribeChats(user.uid);
   }, [user, subscribeChats]);
 
-  const handleChatClick = chat => {
+  const handleChatClick = (chat) => {
     navigation.navigate('Chat', {
       chatDetails: {
         chatId: chat.id,
         participants: [user.uid, chat.otherId],
-      }
+      },
     });
   };
 
-  const formatTime = ts =>
+  const formatTime = (ts) =>
     ts ? ts.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
 
   if (loading) {
@@ -163,123 +156,161 @@ const MessageScreen = () => {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
-      <CustomHeader title="Messages" navigation={navigation} />
+    <LinearGradient
+      colors={['#FFF6E5', '#FFD8A9']}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
+      style={styles.gradient}
+    >
+      <SafeAreaView style={styles.container}>
+        <CustomHeader title="Messages" navigation={navigation} />
 
-      <FlatList
-        data={conversations}
-        keyExtractor={item => item.id}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-        }
-        ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            <Text style={styles.emptyText}>
-              No conversations yet. Start chatting!
-            </Text>
-          </View>
-        }
-        renderItem={({ item }) => (
-          <TouchableOpacity
-            style={styles.chatItem}
-            onPress={() => handleChatClick(item)}
-          >
-            {item.avatar ? (
-              <Image source={{ uri: item.avatar }} style={styles.avatar} />
-            ) : (
-              <View style={styles.avatarPlaceholder}>
-                <Text style={styles.avatarPlaceholderText}>
-                  {item.name.charAt(0)}
+        <FlatList
+          data={conversations}
+          keyExtractor={(item) => item.id}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+          ListEmptyComponent={
+            <View style={styles.emptyContainer}>
+              <Image
+                source={require('../assets/empty-chat.png')}
+                style={styles.emptyImage}
+                resizeMode="contain"
+              />
+              <Text style={styles.emptyText}>No conversations yet</Text>
+              <Text style={styles.emptySubText}>Start chatting with a consultant or friend!</Text>
+            </View>
+          }
+          renderItem={({ item }) => (
+            <TouchableOpacity
+              style={styles.chatCard}
+              onPress={() => handleChatClick(item)}
+              activeOpacity={0.85}
+            >
+              <View style={styles.avatarWrapper}>
+                {item.avatar ? (
+                  <Image source={{ uri: item.avatar }} style={styles.avatar} />
+                ) : (
+                  <LinearGradient
+                    colors={['#FFB775', '#FF8C42']}
+                    style={styles.avatarPlaceholder}
+                  >
+                    <Text style={styles.avatarPlaceholderText}>
+                      {item.name.charAt(0).toUpperCase()}
+                    </Text>
+                  </LinearGradient>
+                )}
+              </View>
+
+              <View style={styles.chatDetails}>
+                <View style={styles.chatHeader}>
+                  <Text style={styles.chatName}>{item.name}</Text>
+                  <Text style={styles.timestamp}>{formatTime(item.timestamp)}</Text>
+                </View>
+                <Text style={styles.lastMessage} numberOfLines={1}>
+                  {item.lastMessage || 'Say hello 👋'}
                 </Text>
               </View>
-            )}
-            <View style={styles.chatInfo}>
-              <Text style={styles.chatName}>{item.name}</Text>
-              <Text style={styles.lastMessage} numberOfLines={1}>
-                {item.lastMessage}
-              </Text>
-            </View>
-            <Text style={styles.timestamp}>
-              {formatTime(item.timestamp)}
-            </Text>
-          </TouchableOpacity>
-        )}
-        contentContainerStyle={
-          conversations.length === 0 && styles.flatEmptyContainer
-        }
-      />
-    </SafeAreaView>
+            </TouchableOpacity>
+          )}
+          contentContainerStyle={
+            conversations.length === 0 && styles.flatEmptyContainer
+          }
+        />
+      </SafeAreaView>
+    </LinearGradient>
   );
 };
 
 const styles = StyleSheet.create({
+  gradient: {
+    flex: 1,
+  },
   container: {
     flex: 1,
-    backgroundColor: '#FFF4E6',
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  chatItem: {
+  chatCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 12,
-    marginHorizontal: 12,
-    marginVertical: 6,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 8,
-    elevation: 1,
+    backgroundColor: '#FFF',
+    marginHorizontal: 16,
+    marginVertical: 8,
+    padding: 14,
+    borderRadius: 18,
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowOffset: { width: 0, height: 3 },
+    shadowRadius: 6,
+  },
+  avatarWrapper: {
+    marginRight: 12,
   },
   avatar: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    marginRight: 12,
+    width: 54,
+    height: 54,
+    borderRadius: 27,
   },
   avatarPlaceholder: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    marginRight: 12,
-    backgroundColor: '#DDD',
+    width: 54,
+    height: 54,
+    borderRadius: 27,
     justifyContent: 'center',
     alignItems: 'center',
   },
   avatarPlaceholderText: {
-    color: '#555',
-    fontSize: 18,
-    fontWeight: 'bold',
+    color: '#fff',
+    fontSize: 20,
+    fontWeight: '700',
   },
-  chatInfo: {
+  chatDetails: {
     flex: 1,
+  },
+  chatHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'baseline',
   },
   chatName: {
     fontSize: 16,
-    fontWeight: '600',
-    color: '#333',
+    fontWeight: '700',
+    color: '#3A2D1F',
   },
   lastMessage: {
     fontSize: 14,
-    color: '#666',
-    marginTop: 2,
+    color: '#6B5C4A',
+    marginTop: 4,
   },
   timestamp: {
     fontSize: 12,
-    color: '#999',
-    marginLeft: 8,
+    color: '#A89074',
   },
   emptyContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 20,
+    padding: 40,
+  },
+  emptyImage: {
+    width: 150,
+    height: 150,
+    marginBottom: 20,
+    opacity: 0.9,
   },
   emptyText: {
-    fontSize: 18,
-    color: '#666',
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#3A2D1F',
+  },
+  emptySubText: {
+    fontSize: 14,
+    color: '#6E5C47',
     textAlign: 'center',
+    marginTop: 6,
   },
   flatEmptyContainer: {
     flexGrow: 1,

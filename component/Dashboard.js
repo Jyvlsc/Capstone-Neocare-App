@@ -121,17 +121,24 @@ export default function Dashboard({ navigation }) {
     </LinearGradient>
   );
 
+ 
   const quickAccessButtons = [
-    { id: '1', name: 'OB-GYN', icon: 'people', screen: 'ConsultantScreen' },
-    { id: '2', name: 'Birth Centers', icon: 'place', screen: 'BirthingCenterLocator' },
-    { id: '3', name: 'Moods', icon: 'mood', screen: 'Assessment' },
-    { id: '4', name: 'Notes', icon: 'note', screen: 'Tracker' },
-    { id: '5', name: 'My Appointments', icon: 'book-online', screen: 'Bookings' },
+    { id: '1', name: 'OB-GYN', icon: 'people', bgColor: '#E9A1C2', screen: 'ConsultantScreen' },
+    { id: '2', name: 'Birth Centers', icon: 'place', bgColor: '#A3D6B1', screen: 'BirthingCenterLocator' },
+    { id: '3', name: 'Moods', icon: 'mood', bgColor: '#F5C77A', screen: 'Assessment' },
+    { id: '4', name: 'Notes', icon: 'note', bgColor: '#A5B9FF', screen: 'Tracker' },
+    { id: '5', name: ' My Appointments', icon: 'book-online', bgColor: '#F5A9D0', screen: 'Bookings' },
   ];
 
   return (
+  <LinearGradient
+    colors={['#FFF6FB', '#f7d155ff']} 
+    start={{ x: 0, y: 0 }}
+    end={{ x: 1, y: 1 }}
+    style={{ flex: 1 }}
+  >
     <SafeAreaView style={styles.safeArea}>
-      <CustomHeader title="Dashboard" navigation={navigation} />
+      <CustomHeader title=" Dashboard" navigation={navigation} />
 
       <ScrollView contentContainerStyle={styles.container}>
         {/* Greeting Section */}
@@ -151,17 +158,22 @@ export default function Dashboard({ navigation }) {
 
         {/* Quick Access Section */}
         <Text style={styles.sectionTitle}>Quick Access</Text>
-        <View style={styles.gridContainer}>
-          {quickAccessButtons.map(btn => (
+        <View style={styles.quickAccessContainer}>
+          {quickAccessButtons.map((btn) => (
             <TouchableOpacity
               key={btn.id}
-              style={styles.gridButton}
+              style={[
+                styles.quickAccessCard,
+                btn.id === '4' && styles.notesCard,
+                btn.id === '5' && styles.fullWidthCard,
+              ]}
               onPress={() => navigation.navigate(btn.screen)}
+              activeOpacity={0.9}
             >
-              <View style={styles.iconCircle}>
-                <Icon name={btn.icon} size={26} color="#fff" />
+              <View style={[styles.quickAccessIconCircle, { backgroundColor: btn.bgColor }]}>
+                <Icon name={btn.icon} size={28} color="#fff" />
               </View>
-              <Text style={styles.gridButtonText}>{btn.name}</Text>
+              <Text style={styles.quickAccessLabel}>{btn.name}</Text>
             </TouchableOpacity>
           ))}
         </View>
@@ -180,7 +192,7 @@ export default function Dashboard({ navigation }) {
           <FlatList
             data={appointments}
             renderItem={renderAppointment}
-            keyExtractor={item => item.id}
+            keyExtractor={(item) => item.id}
             contentContainerStyle={styles.appointmentsList}
             scrollEnabled={false}
           />
@@ -197,20 +209,19 @@ export default function Dashboard({ navigation }) {
         style={styles.chatBotButton}
         onPress={() => navigation.navigate('ChatBot')}
       >
-        <LinearGradient
-          colors={['#D47FA6', '#FF94C2']}
-          style={styles.chatBotGradient}
-        >
+        <LinearGradient colors={['#d4af7fff', '#FF94C2']} style={styles.chatBotGradient}>
           <Icon name="chat" size={28} color="white" />
         </LinearGradient>
       </TouchableOpacity>
     </SafeAreaView>
-  );
+  </LinearGradient>
+);
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: '#FFF' },
-  container: { padding: 15, paddingBottom: 90 },
+ safeArea: { flex: 1, backgroundColor: 'transparent' },
+container: { padding: 15, paddingBottom: 90 },
+
 
   headerCard: {
     borderRadius: 20,
@@ -223,7 +234,15 @@ const styles = StyleSheet.create({
   },
   greeting: { fontSize: 18, color: '#555' },
   name: { fontSize: 26, fontWeight: '700', color: '#D47FA6', marginTop: 5 },
-
+headerCard: {
+  borderRadius: 20,
+  padding: 20,
+  marginBottom: 20,
+  shadowColor: '#D47FA6',
+  shadowOpacity: 0.15,
+  shadowRadius: 8,
+  elevation: 4,
+},
   sectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -238,49 +257,64 @@ const styles = StyleSheet.create({
   },
   viewAll: { color: '#FF7B9C', fontWeight: '500', fontSize: 14 },
 
-  gridContainer: {
+  notesCard: {
+  width: '30%',
+},
+  quickAccessContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
+    marginTop: 10,
   },
-  gridButton: {
+  quickAccessCard: {
     width: '30%',
-    backgroundColor: '#fff',
-    borderRadius: 18,
+    backgroundColor: '#FFF',
+    borderRadius: 15,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 18,
-    marginVertical: 8,
+    paddingVertical: 16,
+    marginBottom: 12,
     shadowColor: '#000',
     shadowOpacity: 0.05,
-    shadowRadius: 5,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 4,
     elevation: 3,
   },
-  iconCircle: {
-    backgroundColor: '#D47FA6',
-    borderRadius: 50,
-    padding: 10,
+  fullWidthCard: {
+  width: '65%',
+  flexDirection: 'row',
+  justifyContent: 'flex-start',
+  paddingVertical: 18,
+  paddingHorizontal: 16,
+},
+  quickAccessIconCircle: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    alignItems: 'center',
+    justifyContent: 'center',
     marginBottom: 8,
   },
-  gridButtonText: {
-    fontSize: 13,
+  quickAccessLabel: {
+    fontSize: 14,
     fontWeight: '600',
     color: '#333',
     textAlign: 'center',
   },
 
-  appointmentCard: {
-    borderRadius: 15,
-    padding: 18,
-    marginVertical: 8,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    shadowColor: '#000',
-    shadowOpacity: 0.08,
-    shadowRadius: 5,
-    elevation: 2,
-  },
+appointmentCard: {
+  borderRadius: 15,
+  padding: 18,
+  marginVertical: 8,
+  flexDirection: 'row',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  shadowColor: '#D47FA6',
+  shadowOpacity: 0.12,
+  shadowRadius: 6,
+  elevation: 2,
+  backgroundColor: '#FFF',
+},
   appointmentContent: { flex: 1 },
   appointmentDate: { fontSize: 16, fontWeight: '600', color: '#333' },
   appointmentTime: { fontSize: 14, color: '#666', marginVertical: 4 },
