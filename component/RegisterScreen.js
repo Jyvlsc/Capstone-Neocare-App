@@ -234,9 +234,10 @@ const RegisterScreen = () => {
 const styles = StyleSheet.create({
   scroll: {
     flexGrow: 1,
-    backgroundColor: '#FFF4E6',
+    backgroundColor: '#FFF4E6'
   },
   container: {
+    backgroundColor:'#FFE4F3',
     flex: 1,
     padding: 20,
     justifyContent: 'center',

@@ -88,7 +88,7 @@ const ForgetPass = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#FFF4E6",
+    backgroundColor: "#FFE4F3",
     justifyContent: "center",
     alignItems: "center",
     padding: 20,

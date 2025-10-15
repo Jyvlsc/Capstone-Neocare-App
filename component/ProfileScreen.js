@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { getAuth, signOut } from 'firebase/auth';
+import { getAuth } from 'firebase/auth';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
@@ -161,15 +161,6 @@ const ProfileScreen = ({ navigation }) => {
     }
   };
 
-  const handleSignOut = async () => {
-    try {
-      await signOut(auth);
-      navigation.navigate('Login');
-    } catch (error) {
-      console.error('Sign out error:', error);
-    }
-  };
-
   if (loading) {
     return (
       <SafeAreaView style={styles.loadingContainer}>
@@ -253,17 +244,6 @@ const ProfileScreen = ({ navigation }) => {
                 ) : (
                   <Text style={styles.updateButtonText}>Update Profile</Text>
                 )}
-              </LinearGradient>
-            </TouchableOpacity>
-
-            <TouchableOpacity onPress={handleSignOut} activeOpacity={0.9}>
-              <LinearGradient
-                colors={['#D47FA6', '#FF6F61']}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.logoutBtn}
-              >
-                <Text style={styles.logoutBtnText}>Logout</Text>
               </LinearGradient>
             </TouchableOpacity>
           </View>
@@ -366,18 +346,6 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontWeight: 'bold',
     fontSize: 16,
-  },
-  logoutBtn: {
-    width: '100%',
-    paddingVertical: 15,
-    borderRadius: 12,
-    alignItems: 'center',
-    elevation: 3,
-  },
-  logoutBtnText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: 'bold',
   },
   loadingContainer: {
     flex: 1,
