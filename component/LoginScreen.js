@@ -69,7 +69,7 @@ const LoginScreen = ({ navigation }) => {
           <Text style={styles.subtitle}>Sign in to continue</Text>
 
           {errorMessage && <Text style={styles.errorText}>{errorMessage}</Text>}
-
+          <Text style={styles.Textlabel}>Email address </Text>
           <TextInput
             style={styles.input}
             placeholder="Email"
@@ -79,6 +79,7 @@ const LoginScreen = ({ navigation }) => {
             value={email}
             onChangeText={setEmail}
           />
+           <Text style={styles.Textlabel}>Password </Text>
           <TextInput
             style={styles.input}
             placeholder="Password"
@@ -106,7 +107,7 @@ const LoginScreen = ({ navigation }) => {
 
           <View style={styles.divider}>
             <View style={styles.line} />
-            <Text style={styles.dividerText}>or</Text>
+            <Text style={styles.dividerText}>or continue with </Text>
             <View style={styles.line} />
           </View>
 
@@ -123,6 +124,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  
   safeArea: {
     flex: 1,
     justifyContent: 'center',
@@ -209,6 +211,12 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-end',
     marginBottom: 15,
   },
+    Textlabel: { 
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#374151',
+    marginBottom: 8,
+   },
 });
 
 export default LoginScreen;
