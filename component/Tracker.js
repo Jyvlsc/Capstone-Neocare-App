@@ -32,7 +32,7 @@ export default function Tracker({ navigation }) {
   const [loading, setLoading] = useState(true);
   const [filterType, setFilterType] = useState("all");
 
-  // ─── One real-time subscription for *all* this client's notes ────────────────
+ 
   useEffect(() => {
     const user = auth.currentUser;
     if (!user) {
@@ -43,7 +43,7 @@ export default function Tracker({ navigation }) {
     const notesQ = query(
       collection(db, "consultationNotes"),
       where("clientId", "==", user.uid),
-      orderBy("createdAt", "desc") // Always order by createdAt
+      orderBy("createdAt", "desc") 
     );
 
     const unsubscribe = onSnapshot(
@@ -60,7 +60,7 @@ export default function Tracker({ navigation }) {
 
         setNotes(allNotes);
 
-        // Build unique doctor list from notes
+        
         const map = {};
         allNotes.forEach(n => {
           if (n.consultantId && n.consultantName) {
@@ -71,7 +71,7 @@ export default function Tracker({ navigation }) {
           Object.entries(map).map(([id, name]) => ({ id, name }))
         );
 
-        setLoading(false); // Set loading to false once data is fetched
+        setLoading(false); 
       },
       err => {
         console.error("Tracker snapshot error:", err);
@@ -82,7 +82,7 @@ export default function Tracker({ navigation }) {
     return () => unsubscribe();
   }, []);
 
-  // ─── Fetch AI summary for one note ───────────────────────────────────────────
+ 
   useEffect(() => {
     if (!selectedNote) return;
     (async () => {
@@ -111,7 +111,7 @@ export default function Tracker({ navigation }) {
     })();
   }, [selectedNote]);
 
-  // ─── Loading Indicator ────────────────────────────────────────────────────────
+ 
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
@@ -120,14 +120,14 @@ export default function Tracker({ navigation }) {
     );
   }
 
-  // ─── NOTE DETAIL SCREEN ───────────────────────────────────────────────────────
+ 
   if (selectedNote) {
   const n = selectedNote;
   return (
     <SafeAreaView style={styles.container}>
       <CustomHeader title="Note Details" navigation={navigation} />
 
-      {/* Back button */}
+   
       <TouchableOpacity
         onPress={() => setSelectedNote(null)}
         style={styles.backButton}
@@ -135,7 +135,7 @@ export default function Tracker({ navigation }) {
         <Text style={styles.backText}>← Back to notes</Text>
       </TouchableOpacity>
 
-      {/* AI Insights Card */}
+   
       {noteSummaryLoading ? (
         <ActivityIndicator
           style={styles.aiLoader}
@@ -148,7 +148,7 @@ export default function Tracker({ navigation }) {
         </View>
       ) : null}
 
-      {/* ─── DETAIL SECTIONS ───────────────────────────────────── */}
+      
       <ScrollView contentContainerStyle={styles.detailContainer}>
         {renderSection("🩺 Maternal Health", n.maternalHealth)}
         {renderSection("👶 Pregnancy Screening", n.screening)}
@@ -162,7 +162,7 @@ export default function Tracker({ navigation }) {
           "Ultrasound Findings": n.ultrasoundFindings,
         })}
 
-        {/* Assessment + Recommendations */}
+       
         {(() => {
           const t = n.consultationType || "unknown";
           const assessment = n[`${t}Assessment`] ?? n.assessment;
@@ -189,11 +189,11 @@ export default function Tracker({ navigation }) {
   );
 }
 
-  // ─── NOTES LIST FOR A SELECTED DOCTOR (with filtering) ───────────────────────
+  
   if (selectedDoctorId) {
-    // all notes by this doctor
+    
     const docNotes = notes.filter((n) => n.consultantId === selectedDoctorId);
-    // then filter by type
+   
     const filteredNotes =
       filterType === "all"
         ? docNotes
@@ -205,7 +205,7 @@ export default function Tracker({ navigation }) {
       <SafeAreaView style={styles.container}>
         <CustomHeader title={`${docName}'s Notes`} navigation={navigation} />
 
-        {/* ─── Filter buttons ─────────────────────────────────────── */}
+       
         <View style={styles.filterContainer}>
           {["all", "pregnancy", "prenatal", "emergency"].map((type) => (
             <TouchableOpacity
@@ -268,7 +268,7 @@ export default function Tracker({ navigation }) {
     );
   }
 
-  // ─── DOCTOR LIST SCREEN ──────────────────────────────────────────────────────
+  
   return (
     <SafeAreaView style={styles.container}>
       <CustomHeader title="Your Doctors" navigation={navigation} />
@@ -300,7 +300,7 @@ export default function Tracker({ navigation }) {
   );
 }
 
-// ─── Helper functions ───────────────────────────────────────────────────────────
+
 function humanize(key) {
   return key
     .replace(/([A-Z])/g, " $1")
@@ -337,7 +337,7 @@ function renderRow(label, value) {
 }
 
 
-// ─── Styles ────────────────────────────────────────────────────────────────────
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -349,7 +349,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
 
-  // Doctor list
+  
   hintText: {
     textAlign: "center",
     marginHorizontal: 20,
@@ -381,7 +381,7 @@ const styles = StyleSheet.create({
     marginTop: 6,
   },
 
-  // Notes list
+  
   listContainer: { paddingBottom: 30 },
   noteCard: {
     backgroundColor: "#fff",
@@ -407,7 +407,7 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
 
-  // Empty state
+ 
   emptyText: {
     textAlign: "center",
     fontSize: 15,
@@ -415,7 +415,7 @@ const styles = StyleSheet.create({
     marginTop: 40,
   },
 
-  // Back button
+  
   backButton: { margin: 16 },
   backText: {
     color: theme.colors.primary,
@@ -423,7 +423,7 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
 
-  // AI Insights card
+ 
   aiLoader: { margin: 16 },
   aiCard: {
     backgroundColor: "#eef6ff",
@@ -450,7 +450,7 @@ const styles = StyleSheet.create({
   },
 
 
-  // Detail view
+ 
 detailContainer: { 
   padding: 16,
 },
@@ -482,7 +482,7 @@ detailValue: {
 },
 
 
-  // Filters
+ 
   filterContainer: {
     flexDirection: "row",
     justifyContent: "center",
@@ -511,7 +511,7 @@ detailValue: {
     color: "#fff",
   },
 
-  // Section titles
+  
   section: {
     marginVertical: 10,
     paddingHorizontal: 16,
@@ -522,7 +522,7 @@ detailValue: {
     marginBottom: 6,
     color: theme.colors.textPrimary,
   },
-  // Header card
+  
 headerCard: {
   backgroundColor: "#fff",
   marginHorizontal: 16,
@@ -552,7 +552,7 @@ headerDate: {
   marginTop: 6,
 },
 
-// Assessment & Recommendations
+
 assessmentCard: {
   backgroundColor: "#fef9c3",
   margin: 16,
