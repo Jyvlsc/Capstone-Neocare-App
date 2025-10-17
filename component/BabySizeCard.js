@@ -80,7 +80,7 @@ export default function BabySizeCard() {
     >
       <Text style={styles.weekTitle}>{`Week ${ga.weeks} + ${ga.days}`}</Text>
 
-      {/* Pregnancy Progress Bar */}
+     
       <View style={styles.progressBarContainer}>
         <Animated.View style={[styles.progressBarFill, { width: progressWidth }]} />
       </View>
