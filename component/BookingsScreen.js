@@ -26,6 +26,7 @@ export default function BookingsScreen({ navigation }) {
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('upcoming');
+  const [tempRatings, setTempRatings] = useState({}); // Store temporary ratings
 
   useEffect(() => {
     const q = query(
@@ -69,6 +70,44 @@ export default function BookingsScreen({ navigation }) {
       : []
     ).map(n => parseInt(n, 10));
     return moment(dateObj).tz('Asia/Manila').hour(h).minute(m);
+  };
+
+  // Handle rating change
+  const handleRatingChange = (bookingId, rating) => {
+    setTempRatings(prev => ({
+      ...prev,
+      [bookingId]: rating
+    }));
+  };
+
+  // Submit rating to Firestore
+  const submitRating = async (booking) => {
+    const rating = tempRatings[booking.id];
+    
+    if (!rating || rating === 0) {
+      Alert.alert('Error', 'Please select a rating before submitting.');
+      return;
+    }
+
+    try {
+      // Update the booking with the rating
+      await updateDoc(doc(db, 'bookings', booking.id), {
+        rating: rating,
+        ratedAt: new Date() // Optional: add timestamp for when rating was given
+      });
+
+      // Clear the temporary rating
+      setTempRatings(prev => {
+        const newRatings = { ...prev };
+        delete newRatings[booking.id];
+        return newRatings;
+      });
+
+      Alert.alert('Thank you!', 'Your rating has been submitted successfully.');
+    } catch (e) {
+      console.error('Error submitting rating:', e);
+      Alert.alert('Error', 'Could not submit rating. Please try again.');
+    }
   };
 
   const filtered = bookings.filter(b => {
@@ -120,6 +159,7 @@ export default function BookingsScreen({ navigation }) {
     const appt = getApptMoment(item);
     const dateStr = appt ? appt.format('LL') : 'Unknown';
     const timeStr = appt ? appt.format('hh:mm A') : item.hour || '';
+    const currentTempRating = tempRatings[item.id] || 0;
 
     return (
       <View style={styles.card}>
@@ -156,33 +196,28 @@ export default function BookingsScreen({ navigation }) {
         )}
 
         {filter === 'complete' && (
-          item.rating
-            ? <Text style={styles.completed}>⭐ Your Rating: {item.rating}</Text>
-            : (
-              <>
-                <Rating
-                  startingValue={item._tempRating || 0}
-                  imageSize={24}
-                  onFinishRating={r => { item._tempRating = r; }}
-                />
-                <TouchableOpacity
-                  style={styles.submitBtn}
-                  onPress={async () => {
-                    try {
-                      await updateDoc(doc(db, 'bookings', item.id), {
-                        rating: item._tempRating
-                      });
-                      Alert.alert('Thank you!', 'Rating submitted.');
-                    } catch (e) {
-                      console.error(e);
-                      Alert.alert('Error', 'Could not submit rating.');
-                    }
-                  }}
-                >
-                  <Text style={styles.submitText}>Submit Rating</Text>
-                </TouchableOpacity>
-              </>
-            )
+          item.rating ? (
+            <View style={styles.ratingContainer}>
+              <Text style={styles.completed}>⭐ Your Rating: {item.rating}/5</Text>
+              <Text style={styles.ratedText}>Thank you for your feedback!</Text>
+            </View>
+          ) : (
+            <View style={styles.ratingContainer}>
+              <Text style={styles.rateTitle}>Rate your experience with Dr. {item.doctorName}</Text>
+              <Rating
+                startingValue={currentTempRating}
+                imageSize={24}
+                onFinishRating={(rating) => handleRatingChange(item.id, rating)}
+                style={styles.ratingStars}
+              />
+              <TouchableOpacity
+                style={styles.submitBtn}
+                onPress={() => submitRating(item)}
+              >
+                <Text style={styles.submitText}>Submit Rating</Text>
+              </TouchableOpacity>
+            </View>
+          )
         )}
       </View>
     );
@@ -315,16 +350,36 @@ const styles = StyleSheet.create({
   },
   payText: { color: '#fff', fontWeight: '600' },
 
-  completed: {
+  ratingContainer: {
     marginTop: 12,
+  },
+  rateTitle: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#374151',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  ratingStars: {
+    paddingVertical: 8,
+    alignSelf: 'center',
+  },
+  completed: {
     color: '#16A34A',
     fontSize: 15,
     fontWeight: '600',
+    textAlign: 'center',
+  },
+  ratedText: {
+    color: '#6B7280',
+    fontSize: 13,
+    textAlign: 'center',
+    marginTop: 4,
   },
   submitBtn: {
-    marginTop: 8,
+    marginTop: 12,
     backgroundColor: '#D47FA6',
-    paddingVertical: 8,
+    paddingVertical: 10,
     borderRadius: 8,
     alignItems: 'center',
   },
