@@ -71,7 +71,7 @@ export default function BabySizeCard() {
     outputRange: ['0%', '100%'],
   });
 
-  // ➤ ADD THIS: determines if pregnancy is full or overdue
+  
   const isDue = ga.weeks >= 40;
 
   return (
@@ -87,7 +87,7 @@ export default function BabySizeCard() {
         <Animated.View
           style={[
             styles.progressBarFill,
-            isDue && { backgroundColor: '#FF6B6B' }, // highlight overdue
+            isDue && { backgroundColor: '#FF6B6B' }, 
             { width: progressWidth },
           ]}
         />
@@ -97,7 +97,7 @@ export default function BabySizeCard() {
         {Math.round(Math.min(ga.weeks / 40, 1) * 100)}% complete
       </Text>
 
-      {/* ➤ SHOW THIS MESSAGE WHEN DUE DATE IS REACHED */}
+   
       {isDue && (
         <Text style={styles.dueText}>
           🎉 Due date reached! Your baby can arrive any moment now.
@@ -203,7 +203,7 @@ const styles = StyleSheet.create({
     marginBottom: 5,
   },
 
-  // ➤ STYLE FOR "DUE DATE REACHED"
+  
   dueText: {
     textAlign: 'center',
     color: '#FF6B6B',
