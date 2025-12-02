@@ -71,6 +71,9 @@ export default function BabySizeCard() {
     outputRange: ['0%', '100%'],
   });
 
+  // ➤ ADD THIS: determines if pregnancy is full or overdue
+  const isDue = ga.weeks >= 40;
+
   return (
     <LinearGradient
       colors={['#FFD6E0', '#FFF5F8']}
@@ -80,11 +83,26 @@ export default function BabySizeCard() {
     >
       <Text style={styles.weekTitle}>{`Week ${ga.weeks} + ${ga.days}`}</Text>
 
-     
       <View style={styles.progressBarContainer}>
-        <Animated.View style={[styles.progressBarFill, { width: progressWidth }]} />
+        <Animated.View
+          style={[
+            styles.progressBarFill,
+            isDue && { backgroundColor: '#FF6B6B' }, // highlight overdue
+            { width: progressWidth },
+          ]}
+        />
       </View>
-      <Text style={styles.progressText}>{Math.round((ga.weeks / 40) * 100)}% complete</Text>
+
+      <Text style={styles.progressText}>
+        {Math.round(Math.min(ga.weeks / 40, 1) * 100)}% complete
+      </Text>
+
+      {/* ➤ SHOW THIS MESSAGE WHEN DUE DATE IS REACHED */}
+      {isDue && (
+        <Text style={styles.dueText}>
+          🎉 Due date reached! Your baby can arrive any moment now.
+        </Text>
+      )}
 
       {size.weightG ? (
         <>
@@ -106,7 +124,6 @@ export default function BabySizeCard() {
               <Text style={styles.fruit}>{`≈ ${size.fruit}`}</Text>
             </View>
 
-          
             <Image
               source={require('../assets/baby_placeholder.png')}
               style={styles.babyImage}
@@ -122,7 +139,9 @@ export default function BabySizeCard() {
           </View>
         </>
       ) : (
-        <Text style={styles.text}>Growth data is available starting from week 22.</Text>
+        <Text style={styles.text}>
+          Growth data is available starting from week 22.
+        </Text>
       )}
     </LinearGradient>
   );
@@ -181,8 +200,18 @@ const styles = StyleSheet.create({
     color: '#555',
     textAlign: 'center',
     marginTop: 5,
+    marginBottom: 5,
+  },
+
+  // ➤ STYLE FOR "DUE DATE REACHED"
+  dueText: {
+    textAlign: 'center',
+    color: '#FF6B6B',
+    fontSize: 14,
+    fontWeight: '700',
     marginBottom: 15,
   },
+
   infoSection: {
     flexDirection: 'row',
     alignItems: 'center',

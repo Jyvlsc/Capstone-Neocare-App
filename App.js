@@ -8,7 +8,6 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { getAuth } from 'firebase/auth';
 import Animated, { useAnimatedStyle, withSpring } from 'react-native-reanimated';
 import Ionicons from 'react-native-vector-icons/Ionicons';
-
 import GetStarted from './component/GetStarted';
 import Dashboard from './component/Dashboard';
 import BookingsScreen from './component/BookingsScreen';
@@ -52,7 +51,7 @@ function HomeTabs() {
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
-        tabBarIcon: ({ focused, color, size }) => {
+        tabBarIcon: ({ focused, color, size }) => { 
           let iconName = '';
           switch (route.name) {
             case 'Home':         iconName = focused ? 'home'           : 'home-outline'; break;
@@ -100,8 +99,11 @@ function HomeTabs() {
 
 export default function App() {
   const navigationRef = useNavigationContainerRef();
+    
 
   useEffect(() => {
+   
+    
     // 1️⃣ Create Android notification channel
     configureAndroidChannel();
 

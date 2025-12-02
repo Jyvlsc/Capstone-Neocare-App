@@ -21,6 +21,9 @@ import Icon from 'react-native-vector-icons/MaterialIcons';
 import { signOut } from 'firebase/auth';
 import theme from '../src/theme';
 import BabySizeCard from './BabySizeCard';
+import { Image } from 'react-native'; 
+import defaultAvatar from '../assets/default-avatar.png';
+
 
 const getTimeOfDay = () => {
   const hr = new Date().getHours();
@@ -32,6 +35,7 @@ const getTimeOfDay = () => {
 export default function Dashboard({ navigation }) {
   const [fullName, setFullName] = useState(null);
   const [appointments, setAppointments] = useState([]);
+   const [profilePhoto, setProfilePhoto] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -41,11 +45,13 @@ export default function Dashboard({ navigation }) {
     const userDocRef = doc(db, 'users', user.uid);
     getDoc(userDocRef)
       .then((docSnap) => {
-        if (docSnap.exists() && docSnap.data().fullName) {
-          setFullName(docSnap.data().fullName);
+        if (docSnap.exists()) {
+          const data = docSnap.data();
+          if (data.fullName) setFullName(data.fullName);
+          if (data.profilePhoto) setProfilePhoto(data.profilePhoto);
         }
       })
-      .catch((err) => console.error('Error fetching user fullName:', err));
+      .catch((err) => console.error('Error fetching user data:', err));
   }, []);
 
   useEffect(() => {
@@ -162,25 +168,41 @@ export default function Dashboard({ navigation }) {
 
       
         <View style={styles.header}>
-          <Text style={styles.headerTitle}>Dashboard</Text>
-          <TouchableOpacity onPress={handleLogout} style={styles.logoutButton}>
-            <Icon name="logout" size={22} color="#D47FA6" />
-          </TouchableOpacity>
-        </View>
+ 
+  <TouchableOpacity
+    onPress={() => navigation.navigate('GetStarted')}
+    style={styles.backButton}
+  >
+    <Icon name="arrow-back" size={24} color="#D47FA6" />
+  </TouchableOpacity>
+
+  <Text style={styles.headerTitle}>Dashboard</Text>
+
+ 
+  <TouchableOpacity onPress={handleLogout} style={styles.logoutButton}>
+    <Icon name="logout" size={22} color="#D47FA6" />
+  </TouchableOpacity>
+</View>
 
         <ScrollView contentContainerStyle={styles.container}>
          
           <LinearGradient
-            colors={['#FFD6E8', '#FFF']}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.headerCard}
-          >
-            <Text style={styles.greeting}>Good {getTimeOfDay()},</Text>
-            <Text style={styles.name}>
-              {fullName || auth.currentUser?.displayName || 'User'}
-            </Text>
-          </LinearGradient>
+  colors={['#FFD6E8', '#FFF']}
+  start={{ x: 0, y: 0 }}
+  end={{ x: 1, y: 1 }}
+  style={styles.headerCard}
+>
+  <Text style={styles.greeting}>Good {getTimeOfDay()},</Text>
+  <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 5 }}>
+    <Image
+      source={profilePhoto ? { uri: profilePhoto } : defaultAvatar} 
+      style={{ width: 50, height: 50, borderRadius: 25, marginRight: 12 }}
+    />
+    <Text style={styles.name}>
+      {fullName || auth.currentUser?.displayName || 'User'}
+    </Text>
+  </View>
+</LinearGradient>
 
           <BabySizeCard />
 
@@ -249,6 +271,17 @@ export default function Dashboard({ navigation }) {
 }
 
 const styles = StyleSheet.create({
+  backButton: {
+  backgroundColor: '#fff',
+  padding: 8,
+  borderRadius: 10,
+  elevation: 4,
+  shadowColor: '#000',
+  shadowOpacity: 0.1,
+  shadowRadius: 4,
+  marginRight: 10,
+},
+
   safeArea: {
     flex: 1,
     backgroundColor: 'transparent',
