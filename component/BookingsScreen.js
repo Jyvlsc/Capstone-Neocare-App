@@ -19,20 +19,78 @@ import {
 import moment from 'moment-timezone';
 import { Rating } from 'react-native-ratings';
 import theme from '../src/theme';
-import commonStyles from '../src/commonStyles';
 import CustomHeader from './CustomHeader';
+import * as Notifications from 'expo-notifications';
+import * as Device from 'expo-device';
+import { Platform } from 'react-native';
 
+// ===============================
+// Notification setup
+// ===============================
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: false,
+    shouldSetBadge: false,
+  }),
+});
+
+// ✅ Schedule a notification immediately
+async function showNotification(title, body, data = {}) {
+  await Notifications.scheduleNotificationAsync({
+    content: { title, body, data },
+    trigger: null,
+  });
+}
+
+// ✅ Expo push registration with retry and fallback
+async function registerForPushNotificationsAsync(retries = 3) {
+  if (!Device.isDevice) {
+    console.warn('Push notifications require a physical device.');
+    return null;
+  }
+
+  try {
+    const tokenInfo = await Notifications.getExpoPushTokenAsync();
+    console.log('Expo Push Token:', tokenInfo.data);
+    return tokenInfo.data;
+  } catch (error) {
+    console.warn(`Push registration failed: ${error.message}`);
+    if (retries > 0) {
+      console.log(`Retrying push registration (${retries} left)...`);
+      await new Promise(res => setTimeout(res, 2000));
+      return registerForPushNotificationsAsync(retries - 1);
+    } else {
+      console.warn('Falling back to local notifications only.');
+      return null;
+    }
+  }
+}
+
+// ===============================
+// BookingsScreen component
+// ===============================
 export default function BookingsScreen({ navigation }) {
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('upcoming');
-  const [tempRatings, setTempRatings] = useState({}); // Store temporary ratings
+  const [tempRatings, setTempRatings] = useState({});
+  const [expoPushToken, setExpoPushToken] = useState(null);
 
+  // Get Expo Push Token on mount
+  useEffect(() => {
+    registerForPushNotificationsAsync().then(token => {
+      setExpoPushToken(token);
+    });
+  }, []);
+
+  // Listen for bookings and trigger notification when accepted
   useEffect(() => {
     const q = query(
       collection(db, 'bookings'),
       where('userId', '==', auth.currentUser.uid)
     );
+
     const unsub = onSnapshot(q, async snap => {
       try {
         const enriched = await Promise.all(snap.docs.map(async d => {
@@ -42,8 +100,26 @@ export default function BookingsScreen({ navigation }) {
             const docSnap = await getDoc(doc(db, 'consultants', b.consultantId));
             if (docSnap.exists()) name = docSnap.data().name;
           }
+
+          // Trigger notification if status changed to "accepted" and not notified
+          if (b.status === 'accepted' && !b.notified) {
+            const title = 'Appointment Accepted ✅';
+            const body = `Your appointment with Dr. ${name} has been accepted!`;
+
+            if (expoPushToken) {
+              // TODO: Optionally send via Expo Push API server-side
+              await showNotification(title, body, { bookingId: b.id });
+            } else {
+              // Fallback to local notification
+              await showNotification(title, body, { bookingId: b.id });
+            }
+
+            await updateDoc(doc(db, 'bookings', b.id), { notified: true });
+          }
+
           return { ...b, doctorName: name };
         }));
+
         setBookings(enriched);
       } catch (e) {
         console.error(e);
@@ -58,8 +134,11 @@ export default function BookingsScreen({ navigation }) {
     });
 
     return () => unsub();
-  }, []);
+  }, [expoPushToken]);
 
+  // ===============================
+  // Other helper functions
+  // ===============================
   const now = moment().tz('Asia/Manila');
 
   const getApptMoment = b => {
@@ -72,37 +151,22 @@ export default function BookingsScreen({ navigation }) {
     return moment(dateObj).tz('Asia/Manila').hour(h).minute(m);
   };
 
-  // Handle rating change
   const handleRatingChange = (bookingId, rating) => {
-    setTempRatings(prev => ({
-      ...prev,
-      [bookingId]: rating
-    }));
+    setTempRatings(prev => ({ ...prev, [bookingId]: rating }));
   };
 
-  // Submit rating to Firestore
-  const submitRating = async (booking) => {
+  const submitRating = async booking => {
     const rating = tempRatings[booking.id];
-    
     if (!rating || rating === 0) {
       Alert.alert('Error', 'Please select a rating before submitting.');
       return;
     }
-
     try {
-      // Update the booking with the rating
       await updateDoc(doc(db, 'bookings', booking.id), {
-        rating: rating,
-        ratedAt: new Date() // Optional: add timestamp for when rating was given
+        rating,
+        ratedAt: new Date()
       });
-
-      // Clear the temporary rating
-      setTempRatings(prev => {
-        const newRatings = { ...prev };
-        delete newRatings[booking.id];
-        return newRatings;
-      });
-
+      setTempRatings(prev => { const newRatings = { ...prev }; delete newRatings[booking.id]; return newRatings; });
       Alert.alert('Thank you!', 'Your rating has been submitted successfully.');
     } catch (e) {
       console.error('Error submitting rating:', e);
@@ -112,34 +176,22 @@ export default function BookingsScreen({ navigation }) {
 
   const filtered = bookings.filter(b => {
     const appt = getApptMoment(b);
-    if (filter === 'unpaid') {
-      return b.status === 'accepted'
-        && b.paymentStatus === 'unpaid'
-        && appt && appt.isSameOrAfter(now);
-    }
-    if (filter === 'complete') {
-      return appt && appt.isBefore(now) && b.paymentStatus === 'paid';
-    }
-    return appt && appt.isSameOrAfter(now) &&
-      (b.status === 'pending' || b.paymentStatus === 'paid');
+    if (filter === 'unpaid') return b.status === 'accepted' && b.paymentStatus === 'unpaid' && appt && appt.isSameOrAfter(now);
+    if (filter === 'complete') return appt && appt.isBefore(now) && b.paymentStatus === 'paid';
+    return appt && appt.isSameOrAfter(now) && (b.status === 'pending' || b.paymentStatus === 'paid');
   });
 
   const handlePay = async booking => {
     try {
-      const resp = await fetch('http://172.16.201.190:3000/api/payments/link', {
+      const resp = await fetch('http:/192.168.1.27:3000/api/payments/link', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          amount: booking.amount,
-          bookingId: booking.id
-        }),
+        body: JSON.stringify({ amount: booking.amount, bookingId: booking.id }),
       });
       const { url, error } = await resp.json();
       if (error || !url) throw new Error(error || 'No payment URL');
       await Linking.openURL(url);
-      await updateDoc(doc(db, 'bookings', booking.id), {
-        paymentStatus: 'paid'
-      });
+      await updateDoc(doc(db, 'bookings', booking.id), { paymentStatus: 'paid' });
     } catch (e) {
       console.error(e);
       Alert.alert('Payment failed', e.message || 'Try again later.');
@@ -155,6 +207,9 @@ export default function BookingsScreen({ navigation }) {
     }
   };
 
+  // ===============================
+  // Render item
+  // ===============================
   const renderItem = ({ item }) => {
     const appt = getApptMoment(item);
     const dateStr = appt ? appt.format('LL') : 'Unknown';
@@ -167,31 +222,19 @@ export default function BookingsScreen({ navigation }) {
         <Text style={styles.details}>📅 {dateStr} • 🕒 {timeStr}</Text>
 
         <View style={styles.badgesRow}>
-          <View style={[styles.badge, { backgroundColor: '#E8F0FE' }]}>
-            <Text style={styles.badgeText}>Status: {item.status}</Text>
-          </View>
-          <View style={[styles.badge, { backgroundColor: item.paymentStatus === 'paid' ? '#D4EDDA' : '#FFF3CD' }]}>
-            <Text style={styles.badgeText}>Payment: {item.paymentStatus}</Text>
-          </View>
+          <View style={[styles.badge, { backgroundColor: '#E8F0FE' }]}><Text style={styles.badgeText}>Status: {item.status}</Text></View>
+          <View style={[styles.badge, { backgroundColor: item.paymentStatus === 'paid' ? '#D4EDDA' : '#FFF3CD' }]}><Text style={styles.badgeText}>Payment: {item.paymentStatus}</Text></View>
         </View>
 
         {filter === 'upcoming' && item.status === 'pending' && (
-          <TouchableOpacity
-            style={styles.cancelBtn}
-            onPress={() => handleCancel(item)}
-          >
+          <TouchableOpacity style={styles.cancelBtn} onPress={() => handleCancel(item)}>
             <Text style={styles.cancelText}>Cancel Appointment</Text>
           </TouchableOpacity>
         )}
 
         {filter === 'unpaid' && (
-          <TouchableOpacity
-            style={styles.payButton}
-            onPress={() => handlePay(item)}
-          >
-            <Text style={styles.payText}>
-              Pay ₱{(item.amount / 100).toFixed(2)}
-            </Text>
+          <TouchableOpacity style={styles.payButton} onPress={() => handlePay(item)}>
+            <Text style={styles.payText}>Pay ₱{(item.amount / 100).toFixed(2)}</Text>
           </TouchableOpacity>
         )}
 
@@ -210,10 +253,7 @@ export default function BookingsScreen({ navigation }) {
                 onFinishRating={(rating) => handleRatingChange(item.id, rating)}
                 style={styles.ratingStars}
               />
-              <TouchableOpacity
-                style={styles.submitBtn}
-                onPress={() => submitRating(item)}
-              >
+              <TouchableOpacity style={styles.submitBtn} onPress={() => submitRating(item)}>
                 <Text style={styles.submitText}>Submit Rating</Text>
               </TouchableOpacity>
             </View>
@@ -223,6 +263,9 @@ export default function BookingsScreen({ navigation }) {
     );
   };
 
+  // ===============================
+  // Main render
+  // ===============================
   if (loading) {
     return (
       <View style={styles.center}>
@@ -270,122 +313,34 @@ export default function BookingsScreen({ navigation }) {
   );
 }
 
+// ===============================
+// Styles (same as before)
+// ===============================
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: '#F9FAFB',
-  },
-  tabs: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    marginVertical: 12,
-    paddingHorizontal: 10,
-  },
-  tab: {
-    paddingVertical: 8,
-    paddingHorizontal: 18,
-    borderRadius: 20,
-    backgroundColor: '#E5E7EB',
-  },
-  activeTab: {
-    backgroundColor: '#D47FA6',
-  },
-  tabText: {
-    color: '#374151',
-    fontWeight: '500',
-  },
-  activeText: {
-    color: '#fff',
-    fontWeight: '600',
-  },
+  safeArea: { flex: 1, backgroundColor: '#F9FAFB' },
+  tabs: { flexDirection: 'row', justifyContent: 'space-around', marginVertical: 12, paddingHorizontal: 10 },
+  tab: { paddingVertical: 8, paddingHorizontal: 18, borderRadius: 20, backgroundColor: '#E5E7EB' },
+  activeTab: { backgroundColor: '#D47FA6' },
+  tabText: { color: '#374151', fontWeight: '500' },
+  activeText: { color: '#fff', fontWeight: '600' },
   list: { paddingHorizontal: 15, paddingBottom: 20 },
   noText: { fontSize: 16, color: '#6B7280', textAlign: 'center', marginTop: 20 },
-
-  card: {
-    backgroundColor: '#fff',
-    padding: 16,
-    borderRadius: 12,
-    shadowColor: '#000',
-    shadowOpacity: 0.05,
-    shadowRadius: 6,
-    elevation: 2,
-    marginVertical: 8,
-  },
-  title: {
-    fontSize: 18, fontWeight: '600', color: '#111827',
-  },
-  details: {
-    fontSize: 15, marginVertical: 6, color: '#374151',
-  },
-  badgesRow: {
-    flexDirection: 'row',
-    marginVertical: 6,
-    gap: 8,
-  },
-  badge: {
-    paddingVertical: 4,
-    paddingHorizontal: 8,
-    borderRadius: 8,
-  },
-  badgeText: {
-    fontSize: 13,
-    fontWeight: '500',
-    color: '#333',
-  },
-  cancelBtn: {
-    marginTop: 12,
-    backgroundColor: '#EF4444',
-    paddingVertical: 10,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
+  card: { backgroundColor: '#fff', padding: 16, borderRadius: 12, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 6, elevation: 2, marginVertical: 8 },
+  title: { fontSize: 18, fontWeight: '600', color: '#111827' },
+  details: { fontSize: 15, marginVertical: 6, color: '#374151' },
+  badgesRow: { flexDirection: 'row', marginVertical: 6, gap: 8 },
+  badge: { paddingVertical: 4, paddingHorizontal: 8, borderRadius: 8 },
+  badgeText: { fontSize: 13, fontWeight: '500', color: '#333' },
+  cancelBtn: { marginTop: 12, backgroundColor: '#EF4444', paddingVertical: 10, borderRadius: 8, alignItems: 'center' },
   cancelText: { color: '#fff', fontWeight: '600' },
-
-  payButton: {
-    marginTop: 12,
-    backgroundColor: '#3B82F6',
-    paddingVertical: 10,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
+  payButton: { marginTop: 12, backgroundColor: '#3B82F6', paddingVertical: 10, borderRadius: 8, alignItems: 'center' },
   payText: { color: '#fff', fontWeight: '600' },
-
-  ratingContainer: {
-    marginTop: 12,
-  },
-  rateTitle: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#374151',
-    marginBottom: 8,
-    textAlign: 'center',
-  },
-  ratingStars: {
-    paddingVertical: 8,
-    alignSelf: 'center',
-  },
-  completed: {
-    color: '#16A34A',
-    fontSize: 15,
-    fontWeight: '600',
-    textAlign: 'center',
-  },
-  ratedText: {
-    color: '#6B7280',
-    fontSize: 13,
-    textAlign: 'center',
-    marginTop: 4,
-  },
-  submitBtn: {
-    marginTop: 12,
-    backgroundColor: '#D47FA6',
-    paddingVertical: 10,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
+  ratingContainer: { marginTop: 12 },
+  rateTitle: { fontSize: 14, fontWeight: '500', color: '#374151', marginBottom: 8, textAlign: 'center' },
+  ratingStars: { paddingVertical: 8, alignSelf: 'center' },
+  completed: { color: '#16A34A', fontSize: 15, fontWeight: '600', textAlign: 'center' },
+  ratedText: { color: '#6B7280', fontSize: 13, textAlign: 'center', marginTop: 4 },
+  submitBtn: { marginTop: 12, backgroundColor: '#D47FA6', paddingVertical: 10, borderRadius: 8, alignItems: 'center' },
   submitText: { color: '#fff', fontWeight: '600' },
-
-  center: {
-    flex: 1, justifyContent: 'center', alignItems: 'center',
-  },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
 });
