@@ -1,6 +1,6 @@
 // src/screens/MessageScreen.js
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -28,6 +28,7 @@ import {
 import { db, auth } from '../firebaseConfig';
 import CustomHeader from './CustomHeader';
 import theme from '../src/theme';
+import * as Notifications from 'expo-notifications';
 
 const MessageScreen = () => {
   const [conversations, setConversations] = useState([]);
@@ -35,6 +36,9 @@ const MessageScreen = () => {
   const [refreshing, setRefreshing] = useState(false);
   const navigation = useNavigation();
   const user = auth.currentUser;
+
+  // Track last messages to avoid duplicate notifications
+  const previousMessages = useRef({});
 
   const subscribeChats = useCallback(
     (userId) => {
@@ -46,70 +50,83 @@ const MessageScreen = () => {
 
       return onSnapshot(
         q,
-        (snapshot) => {
-          (async () => {
-            const convs = await Promise.all(
-              snapshot.docs.map(async (chatDoc) => {
-                const chat = chatDoc.data();
-                const otherId = chat.participants.find((id) => id !== userId);
+        async (snapshot) => {
+          const convs = await Promise.all(
+            snapshot.docs.map(async (chatDoc) => {
+              const chat = chatDoc.data();
+              const otherId = chat.participants.find((id) => id !== userId);
 
-                let name = '';
-                let avatar = null;
+              let name = '';
+              let avatar = null;
+
+              try {
+                const userSnap = await getDoc(doc(db, 'users', otherId));
+                if (userSnap.exists()) {
+                  const u = userSnap.data();
+                  name = u.fullName || u.displayName || u.name || '';
+                  avatar = u.photoURL || null;
+                }
+              } catch {}
+
+              if (!name) {
                 try {
-                  const userSnap = await getDoc(doc(db, 'users', otherId));
-                  if (userSnap.exists()) {
-                    const u = userSnap.data();
-                    name = u.fullName || u.displayName || u.email || '';
-                    avatar = u.photoURL || null;
+                  const consSnap = await getDoc(doc(db, 'consultants', otherId));
+                  if (consSnap.exists()) {
+                    const c = consSnap.data();
+                    name = c.name || '';
+                    avatar = c.profilePhoto || avatar;
                   }
                 } catch {}
+              }
 
-                if (!name) {
-                  try {
-                    const consSnap = await getDoc(doc(db, 'consultants', otherId));
-                    if (consSnap.exists()) {
-                      const c = consSnap.data();
-                      name = c.name || '';
-                      avatar = c.profilePhoto || avatar;
-                    }
-                  } catch {}
+              if (!name) name = otherId;
+
+              let lastMessage = chat.lastMessageText || '';
+              let timestamp = chat.lastUpdated?.toDate() || chat.createdAt?.toDate();
+
+              const msgsSnap = await getDocs(
+                query(
+                  collection(db, 'chats', chatDoc.id, 'messages'),
+                  orderBy('createdAt', 'desc'),
+                  limit(1)
+                )
+              );
+
+              if (!msgsSnap.empty) {
+                const m = msgsSnap.docs[0].data();
+                lastMessage = m.text;
+                timestamp = m.createdAt.toDate();
+
+                // Notification for new messages from others
+                const msgId = msgsSnap.docs[0].id;
+                if (previousMessages.current[chatDoc.id] !== msgId && m.sender !== userId) {
+                  previousMessages.current[chatDoc.id] = msgId;
+
+                  Notifications.scheduleNotificationAsync({
+                    content: {
+                      title: `New message from ${name}`,
+                      body: m.text,
+                      data: { chatId: chatDoc.id },
+                    },
+                    trigger: null,
+                  });
                 }
+              }
 
-                if (!name) name = otherId;
+              return {
+                id: chatDoc.id,
+                otherId,
+                name,
+                avatar,
+                lastMessage,
+                timestamp,
+              };
+            })
+          );
 
-                let lastMessage = chat.lastMessageText || '';
-                let timestamp = chat.lastUpdated?.toDate() || chat.createdAt?.toDate();
-
-                if (!lastMessage) {
-                  const msgsSnap = await getDocs(
-                    query(
-                      collection(db, 'chats', chatDoc.id, 'messages'),
-                      orderBy('createdAt', 'desc'),
-                      limit(1)
-                    )
-                  );
-                  if (!msgsSnap.empty) {
-                    const m = msgsSnap.docs[0].data();
-                    lastMessage = m.text;
-                    timestamp = m.createdAt.toDate();
-                  }
-                }
-
-                return {
-                  id: chatDoc.id,
-                  otherId,
-                  name,
-                  avatar,
-                  lastMessage,
-                  timestamp,
-                };
-              })
-            );
-
-            setConversations(convs);
-            setLoading(false);
-            setRefreshing(false);
-          })();
+          setConversations(convs);
+          setLoading(false);
+          setRefreshing(false);
         },
         (error) => {
           console.error('Chat subscription error', error);
@@ -212,9 +229,7 @@ const MessageScreen = () => {
               </View>
             </TouchableOpacity>
           )}
-          contentContainerStyle={
-            conversations.length === 0 && styles.flatEmptyContainer
-          }
+          contentContainerStyle={conversations.length === 0 && styles.flatEmptyContainer}
         />
       </SafeAreaView>
     </LinearGradient>
@@ -222,17 +237,9 @@ const MessageScreen = () => {
 };
 
 const styles = StyleSheet.create({
-  gradient: {
-    flex: 1,
-  },
-  container: {
-    flex: 1,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
+  gradient: { flex: 1 },
+  container: { flex: 1 },
+  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   chatCard: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -247,75 +254,20 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 3 },
     shadowRadius: 6,
   },
-  avatarWrapper: {
-    marginRight: 12,
-  },
-  avatar: {
-    width: 54,
-    height: 54,
-    borderRadius: 27,
-  },
-  avatarPlaceholder: {
-    width: 54,
-    height: 54,
-    borderRadius: 27,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  avatarPlaceholderText: {
-    color: '#fff',
-    fontSize: 20,
-    fontWeight: '700',
-  },
-  chatDetails: {
-    flex: 1,
-  },
-  chatHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'baseline',
-  },
-  chatName: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#3A2D1F',
-  },
-  lastMessage: {
-    fontSize: 14,
-    color: '#6B5C4A',
-    marginTop: 4,
-  },
-  timestamp: {
-    fontSize: 12,
-    color: '#A89074',
-  },
-  emptyContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 40,
-  },
-  emptyImage: {
-    width: 150,
-    height: 150,
-    marginBottom: 20,
-    opacity: 0.9,
-  },
-  emptyText: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#3A2D1F',
-  },
-  emptySubText: {
-    fontSize: 14,
-    color: '#6E5C47',
-    textAlign: 'center',
-    marginTop: 6,
-  },
-  flatEmptyContainer: {
-    flexGrow: 1,
-    justifyContent: 'center',
-  },
+  avatarWrapper: { marginRight: 12 },
+  avatar: { width: 54, height: 54, borderRadius: 27 },
+  avatarPlaceholder: { width: 54, height: 54, borderRadius: 27, justifyContent: 'center', alignItems: 'center' },
+  avatarPlaceholderText: { color: '#fff', fontSize: 20, fontWeight: '700' },
+  chatDetails: { flex: 1 },
+  chatHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' },
+  chatName: { fontSize: 16, fontWeight: '700', color: '#3A2D1F' },
+  lastMessage: { fontSize: 14, color: '#6B5C4A', marginTop: 4 },
+  timestamp: { fontSize: 12, color: '#A89074' },
+  emptyContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 40 },
+  emptyImage: { width: 150, height: 150, marginBottom: 20, opacity: 0.9 },
+  emptyText: { fontSize: 20, fontWeight: '700', color: '#3A2D1F' },
+  emptySubText: { fontSize: 14, color: '#6E5C47', textAlign: 'center', marginTop: 6 },
+  flatEmptyContainer: { flexGrow: 1, justifyContent: 'center' },
 });
 
 export default MessageScreen;
