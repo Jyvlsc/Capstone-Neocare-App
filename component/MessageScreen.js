@@ -177,7 +177,7 @@ const MessageScreen = () => {
                 resizeMode="contain"
               />
               <Text style={styles.emptyText}>No conversations yet</Text>
-              <Text style={styles.emptySubText}>Start chatting with a consultant or friend!</Text>
+              <Text style={styles.emptySubText}>Start chatting with a consultant </Text>
             </View>
           }
           renderItem={({ item }) => (

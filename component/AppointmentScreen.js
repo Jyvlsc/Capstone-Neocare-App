@@ -24,6 +24,45 @@ import moment from 'moment-timezone';
 import theme from '../src/theme';
 import commonStyles from '../src/commonStyles';
 
+/* 🔥 FILTER OUT PAST TIMES FOR TODAY */
+const filterFutureTimes = (selectedDate, timeSlots) => {
+  const now = moment().tz("Asia/Manila");
+  const isToday =
+    now.format("YYYY-MM-DD") ===
+    moment(selectedDate).tz("Asia/Manila").format("YYYY-MM-DD");
+  if (!isToday) return timeSlots;
+  return timeSlots.filter(time => {
+    const slotMoment = moment(
+      `${moment(selectedDate).format("YYYY-MM-DD")} ${time}`,
+      "YYYY-MM-DD hh:mm A"
+    ).tz("Asia/Manila");
+    return slotMoment.isAfter(now);
+  });
+};
+
+/* 🔹 Suggest next day first available slot */
+const getNextAvailableSlot = (consultant, fromDate = moment()) => {
+  if (!consultant?.consultationHours?.length || !consultant?.availableDays?.length)
+    return null;
+
+  let date = fromDate.clone().startOf('day');
+  for (let i = 0; i < 14; i++) { // look up to 2 weeks ahead
+    const weekday = date.format('dddd');
+    if (consultant.availableDays.includes(weekday)) {
+      // check if this is today: skip past times
+      let firstAvailableTime = consultant.consultationHours.find(t => {
+        const slotMoment = moment(`${date.format('YYYY-MM-DD')} ${t}`, "YYYY-MM-DD hh:mm A");
+        return slotMoment.isAfter(moment());
+      });
+      if (firstAvailableTime) {
+        return { date: date.toDate(), time: firstAvailableTime };
+      }
+    }
+    date.add(1, 'day');
+  }
+  return null; // no slots in next 2 weeks
+};
+
 export default function AppointmentScreen({ route, navigation }) {
   const { consultant, date: dateParam, time: timeParam, platform: platformParam } = route.params;
   const usedConsultant = consultant;
@@ -34,10 +73,10 @@ export default function AppointmentScreen({ route, navigation }) {
     : getNextAvailableDate(usedConsultant.availableDays || []);
   const [selectedDate, setSelectedDate] = useState(initialDate);
 
-  // 2️⃣ Time (now as empty string rather than null)
+  // 2️⃣ Time
   const [selectedHour, setSelectedHour] = useState(timeParam || '');
 
-  // 3️⃣ Platform (also default to empty string)
+  // 3️⃣ Platform
   const modesRaw = Array.isArray(usedConsultant.platform) ? usedConsultant.platform : [];
   const availablePlatforms = modesRaw
     .map(m => {
@@ -119,7 +158,7 @@ export default function AppointmentScreen({ route, navigation }) {
     }
   };
 
-  // 🔘 Booking submission with separate checks
+  // 🔘 Booking submission
   const handleBook = useCallback(async () => {
     if (!selectedHour) {
       ToastAndroid.show('Please select a time', ToastAndroid.SHORT);
@@ -189,15 +228,62 @@ export default function AppointmentScreen({ route, navigation }) {
           {/* Time Picker */}
           <View style={styles.selectionContainer}>
             <Text style={styles.label}>Select Time</Text>
-            <Picker
-              selectedValue={selectedHour}
-              onValueChange={v => setSelectedHour(v)}
-            >
-              <Picker.Item label="-- pick a time --" value="" />
-              {(usedConsultant.consultationHours || [])
-                .filter(h => !bookedTimes.includes(h))
-                .map(h => <Picker.Item key={h} label={h} value={h} />)}
-            </Picker>
+
+            {(() => {
+              const availableTimesToday = filterFutureTimes(
+                selectedDate,
+                (usedConsultant.consultationHours || []).filter(
+                  h => !bookedTimes.includes(h)
+                )
+              );
+
+              const noTimesLeft =
+                availableTimesToday.length === 0 &&
+                moment(selectedDate).isSame(moment(), "day");
+
+              return (
+                <>
+                  {/* 🔴 No more times today message */}
+                  {noTimesLeft && (
+                    <View style={{ padding: 10 }}>
+                      <Text style={{ color: "red", fontSize: 14, marginBottom: 5 }}>
+                        No more time slots today — how about this one?
+                      </Text>
+
+                      {(() => {
+                       const suggestion = getNextAvailableSlot(usedConsultant);
+                        return suggestion ? (
+                          <TouchableOpacity
+                            onPress={() => {
+                              setSelectedDate(suggestion.date);
+                              setSelectedHour(suggestion.time);
+                            }}
+                            style={{
+                              padding: 10,
+                              backgroundColor: "#eef",
+                              borderRadius: 8,
+                              marginTop: 5,
+                            }}
+                          >
+                            <Text style={{ fontSize: 16, fontWeight: "600" }}>
+                              {moment(suggestion.date).format("MMM DD")} at {suggestion.time}
+                            </Text>
+                          </TouchableOpacity>
+                        ) : null;
+                      })()}
+                    </View>
+                  )}
+
+                  {/* Picker */}
+                  <Picker selectedValue={selectedHour} onValueChange={v => setSelectedHour(v)}>
+                    <Picker.Item label="-- pick a time --" value="" />
+                    {availableTimesToday.map(h => (
+                      <Picker.Item key={h} label={h} value={h} />
+                    ))}
+                  </Picker>
+                </>
+              );
+            })()}
           </View>
 
           {/* Platform Picker */}
@@ -214,7 +300,7 @@ export default function AppointmentScreen({ route, navigation }) {
             </Picker>
           </View>
 
-          {/* Book Button (now disabled until time & platform are chosen) */}
+          {/* Book Button */}
           <TouchableOpacity
             style={[
               commonStyles.buttonPrimary,

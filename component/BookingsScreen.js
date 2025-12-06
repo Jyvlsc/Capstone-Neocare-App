@@ -93,20 +93,97 @@ export default function BookingsScreen({ navigation }) {
           }
 
          
-          if (b.status === 'cancelled' && !b.cancelNotified) {
-            const title = 'Appointment Cancelled ❌';
-            const body = `Your appointment with Dr. ${name} has been cancelled due to no-show.`;
-            await showNotification(title, body, { bookingId: b.id });
-            await updateDoc(doc(db, 'bookings', b.id), { cancelNotified: true });
-          }
+      
+if (b.status === 'cancelled' && !b.cancelNotified) {
+  const title = 'Appointment Cancelled ❌';
+  const body = `Your appointment with Dr. ${name} has been cancelled due to no-show.`;
+  await showNotification(title, body, { bookingId: b.id });
+  await updateDoc(doc(db, 'bookings', b.id), { cancelNotified: true });
+}
 
-        
-          if (b.status === 'accepted' && !b.notified) {
-            const title = 'Appointment Accepted ✅';
-            const body = `Your appointment with Dr. ${name} has been accepted!`;
-            await showNotification(title, body, { bookingId: b.id });
-            await updateDoc(doc(db, 'bookings', b.id), { notified: true });
-          }
+
+if (b.status === 'accepted' && !b.notified) {
+  const title = 'Appointment Accepted ✅';
+  const body = `Your appointment with Dr. ${name} has been accepted!`;
+  await showNotification(title, body, { bookingId: b.id });
+  await updateDoc(doc(db, 'bookings', b.id), { notified: true });
+}
+
+
+if (b.status === 'accepted' && !b.upcomingNotified) {
+  const apptMoment = getApptMoment(b);
+
+  if (apptMoment) {
+    const hoursBefore = apptMoment.diff(now, 'hours');
+
+    if (hoursBefore <= 24 && hoursBefore >= 0) {
+      const title = 'Upcoming Appointment Reminder 🔔';
+      const body = `You have an appointment with Dr. ${name} on ${apptMoment.format('LLL')}.`;
+
+      await showNotification(title, body, { bookingId: b.id });
+
+      await updateDoc(doc(db, 'bookings', b.id), { upcomingNotified: true });
+    }
+  }
+}
+
+
+if (b.status === 'accepted' && !b.oneHourNotified) {
+  const apptMoment = getApptMoment(b);
+
+  if (apptMoment) {
+    const mins = apptMoment.diff(now, 'minutes');
+
+  
+    if (mins <= 60 && mins > 50) {
+      const title = 'Appointment in 1 Hour ⏰';
+      const body = `You have an appointment with Dr. ${name} in 1 hour.`;
+
+      await showNotification(title, body, { bookingId: b.id });
+
+      await updateDoc(doc(db, 'bookings', b.id), { oneHourNotified: true });
+    }
+  }
+}
+
+
+if (b.status === 'accepted' && !b.tenMinNotified) {
+  const apptMoment = getApptMoment(b);
+
+  if (apptMoment) {
+    const mins = apptMoment.diff(now, 'minutes');
+
+   
+    if (mins <= 10 && mins > 5) {
+      const title = 'Appointment in 10 Minutes ⏰';
+      const body = `You have an appointment with Dr. ${name} in 10 minutes.`;
+
+      await showNotification(title, body, { bookingId: b.id });
+
+      await updateDoc(doc(db, 'bookings', b.id), { tenMinNotified: true });
+    }
+  }
+}
+
+
+if (b.status === 'accepted' && !b.exactTimeNotified) {
+  const apptMoment = getApptMoment(b);
+
+  if (apptMoment) {
+    const mins = apptMoment.diff(now, 'minutes');
+
+    
+    if (mins <= 0 && mins > -2) {
+      const title = 'Appointment Time ⏳';
+      const body = `Your appointment with Dr. ${name} is starting now.`;
+
+      await showNotification(title, body, { bookingId: b.id });
+
+      await updateDoc(doc(db, 'bookings', b.id), { exactTimeNotified: true });
+    }
+  }
+}
+
 
           return { ...b, doctorName: name };
         }));
