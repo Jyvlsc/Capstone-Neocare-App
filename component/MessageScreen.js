@@ -1,6 +1,6 @@
 // src/screens/MessageScreen.js
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -10,9 +10,8 @@ import {
   ActivityIndicator,
   RefreshControl,
   SafeAreaView,
-  Image,
+  Image
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation } from '@react-navigation/native';
 import {
   collection,
@@ -23,12 +22,11 @@ import {
   getDoc,
   getDocs,
   limit,
-  doc,
+  doc
 } from 'firebase/firestore';
 import { db, auth } from '../firebaseConfig';
 import CustomHeader from './CustomHeader';
 import theme from '../src/theme';
-import * as Notifications from 'expo-notifications';
 
 const MessageScreen = () => {
   const [conversations, setConversations] = useState([]);
@@ -37,11 +35,8 @@ const MessageScreen = () => {
   const navigation = useNavigation();
   const user = auth.currentUser;
 
-  // Track last messages to avoid duplicate notifications
-  const previousMessages = useRef({});
-
   const subscribeChats = useCallback(
-    (userId) => {
+    userId => {
       const q = query(
         collection(db, 'chats'),
         where('participants', 'array-contains', userId),
@@ -50,85 +45,80 @@ const MessageScreen = () => {
 
       return onSnapshot(
         q,
-        async (snapshot) => {
-          const convs = await Promise.all(
-            snapshot.docs.map(async (chatDoc) => {
-              const chat = chatDoc.data();
-              const otherId = chat.participants.find((id) => id !== userId);
+        snapshot => {
+          (async () => {
+            const convs = await Promise.all(
+              snapshot.docs.map(async chatDoc => {
+                const chat = chatDoc.data();
+                const otherId = chat.participants.find(id => id !== userId);
 
-              let name = '';
-              let avatar = null;
-
-              try {
-                const userSnap = await getDoc(doc(db, 'users', otherId));
-                if (userSnap.exists()) {
-                  const u = userSnap.data();
-                  name = u.fullName || u.displayName || u.name || '';
-                  avatar = u.photoURL || null;
-                }
-              } catch {}
-
-              if (!name) {
+                // Try fetching from 'users'
+                let name = '';
+                let avatar = null;
                 try {
-                  const consSnap = await getDoc(doc(db, 'consultants', otherId));
-                  if (consSnap.exists()) {
-                    const c = consSnap.data();
-                    name = c.name || '';
-                    avatar = c.profilePhoto || avatar;
+                  const userSnap = await getDoc(doc(db, 'users', otherId));
+                  if (userSnap.exists()) {
+                    const u = userSnap.data();
+                    name = u.fullName || u.displayName || u.email || '';
+                    avatar = u.photoURL || null;
                   }
-                } catch {}
-              }
-
-              if (!name) name = otherId;
-
-              let lastMessage = chat.lastMessageText || '';
-              let timestamp = chat.lastUpdated?.toDate() || chat.createdAt?.toDate();
-
-              const msgsSnap = await getDocs(
-                query(
-                  collection(db, 'chats', chatDoc.id, 'messages'),
-                  orderBy('createdAt', 'desc'),
-                  limit(1)
-                )
-              );
-
-              if (!msgsSnap.empty) {
-                const m = msgsSnap.docs[0].data();
-                lastMessage = m.text;
-                timestamp = m.createdAt.toDate();
-
-                // Notification for new messages from others
-                const msgId = msgsSnap.docs[0].id;
-                if (previousMessages.current[chatDoc.id] !== msgId && m.sender !== userId) {
-                  previousMessages.current[chatDoc.id] = msgId;
-
-                  Notifications.scheduleNotificationAsync({
-                    content: {
-                      title: `New message from ${name}`,
-                      body: m.text,
-                      data: { chatId: chatDoc.id },
-                    },
-                    trigger: null,
-                  });
+                } catch (e) {
+                  console.warn('User fetch error', e);
                 }
-              }
 
-              return {
-                id: chatDoc.id,
-                otherId,
-                name,
-                avatar,
-                lastMessage,
-                timestamp,
-              };
-            })
-          );
+                // If still no name, try 'consultants'
+                if (!name) {
+                  try {
+                    const consSnap = await getDoc(doc(db, 'consultants', otherId));
+                    if (consSnap.exists()) {
+                      const c = consSnap.data();
+                      name = c.name || '';
+                      avatar = c.profilePhoto || avatar;
+                    }
+                  } catch (e) {
+                    console.warn('Consultant fetch error', e);
+                  }
+                }
 
-          setConversations(convs);
-          setLoading(false);
-          setRefreshing(false);
+                // Final fallback to ID
+                if (!name) name = otherId;
+
+                // Fetch last message if needed
+                let lastMessage = chat.lastMessageText || '';
+                let timestamp =
+                  chat.lastUpdated?.toDate() || chat.createdAt?.toDate();
+                if (!lastMessage) {
+                  const msgsSnap = await getDocs(
+                    query(
+                      collection(db, 'chats', chatDoc.id, 'messages'),
+                      orderBy('createdAt', 'desc'),
+                      limit(1)
+                    )
+                  );
+                  if (!msgsSnap.empty) {
+                    const m = msgsSnap.docs[0].data();
+                    lastMessage = m.text;
+                    timestamp = m.createdAt.toDate();
+                  }
+                }
+
+                return {
+                  id: chatDoc.id,
+                  otherId,
+                  name,
+                  avatar,
+                  lastMessage,
+                  timestamp
+                };
+              })
+            );
+
+            setConversations(convs);
+            setLoading(false);
+            setRefreshing(false);
+          })();
         },
-        (error) => {
+        error => {
           console.error('Chat subscription error', error);
           setLoading(false);
           setRefreshing(false);
@@ -152,16 +142,16 @@ const MessageScreen = () => {
     if (user) subscribeChats(user.uid);
   }, [user, subscribeChats]);
 
-  const handleChatClick = (chat) => {
+  const handleChatClick = chat => {
     navigation.navigate('Chat', {
       chatDetails: {
         chatId: chat.id,
         participants: [user.uid, chat.otherId],
-      },
+      }
     });
   };
 
-  const formatTime = (ts) =>
+  const formatTime = ts =>
     ts ? ts.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
 
   if (loading) {
@@ -173,101 +163,128 @@ const MessageScreen = () => {
   }
 
   return (
-    <LinearGradient
-      colors={['#FFF6E5', '#FFD8A9']}
-      start={{ x: 0, y: 0 }}
-      end={{ x: 1, y: 1 }}
-      style={styles.gradient}
-    >
-      <SafeAreaView style={styles.container}>
-        <CustomHeader title="Messages" navigation={navigation} />
+    <SafeAreaView style={styles.container}>
+      <CustomHeader title="Messages" navigation={navigation} />
 
-        <FlatList
-          data={conversations}
-          keyExtractor={(item) => item.id}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-          ListEmptyComponent={
-            <View style={styles.emptyContainer}>
-              <Image
-                source={require('../assets/empty-chat.png')}
-                style={styles.emptyImage}
-                resizeMode="contain"
-              />
-              <Text style={styles.emptyText}>No conversations yet</Text>
-              <Text style={styles.emptySubText}>Start chatting with a consultant </Text>
-            </View>
-          }
-          renderItem={({ item }) => (
-            <TouchableOpacity
-              style={styles.chatCard}
-              onPress={() => handleChatClick(item)}
-              activeOpacity={0.85}
-            >
-              <View style={styles.avatarWrapper}>
-                {item.avatar ? (
-                  <Image source={{ uri: item.avatar }} style={styles.avatar} />
-                ) : (
-                  <LinearGradient
-                    colors={['#FFB775', '#FF8C42']}
-                    style={styles.avatarPlaceholder}
-                  >
-                    <Text style={styles.avatarPlaceholderText}>
-                      {item.name.charAt(0).toUpperCase()}
-                    </Text>
-                  </LinearGradient>
-                )}
-              </View>
-
-              <View style={styles.chatDetails}>
-                <View style={styles.chatHeader}>
-                  <Text style={styles.chatName}>{item.name}</Text>
-                  <Text style={styles.timestamp}>{formatTime(item.timestamp)}</Text>
-                </View>
-                <Text style={styles.lastMessage} numberOfLines={1}>
-                  {item.lastMessage || 'Say hello 👋'}
+      <FlatList
+        data={conversations}
+        keyExtractor={item => item.id}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
+        ListEmptyComponent={
+          <View style={styles.emptyContainer}>
+            <Text style={styles.emptyText}>
+              No conversations yet. Start chatting!
+            </Text>
+          </View>
+        }
+        renderItem={({ item }) => (
+          <TouchableOpacity
+            style={styles.chatItem}
+            onPress={() => handleChatClick(item)}
+          >
+            {item.avatar ? (
+              <Image source={{ uri: item.avatar }} style={styles.avatar} />
+            ) : (
+              <View style={styles.avatarPlaceholder}>
+                <Text style={styles.avatarPlaceholderText}>
+                  {item.name.charAt(0)}
                 </Text>
               </View>
-            </TouchableOpacity>
-          )}
-          contentContainerStyle={conversations.length === 0 && styles.flatEmptyContainer}
-        />
-      </SafeAreaView>
-    </LinearGradient>
+            )}
+            <View style={styles.chatInfo}>
+              <Text style={styles.chatName}>{item.name}</Text>
+              <Text style={styles.lastMessage} numberOfLines={1}>
+                {item.lastMessage}
+              </Text>
+            </View>
+            <Text style={styles.timestamp}>
+              {formatTime(item.timestamp)}
+            </Text>
+          </TouchableOpacity>
+        )}
+        contentContainerStyle={
+          conversations.length === 0 && styles.flatEmptyContainer
+        }
+      />
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
-  gradient: { flex: 1 },
-  container: { flex: 1 },
-  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  chatCard: {
+  container: {
+    flex: 1,
+    backgroundColor: '#FFF4E6',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  chatItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFF',
-    marginHorizontal: 16,
-    marginVertical: 8,
-    padding: 14,
-    borderRadius: 18,
-    elevation: 4,
-    shadowColor: '#000',
-    shadowOpacity: 0.1,
-    shadowOffset: { width: 0, height: 3 },
-    shadowRadius: 6,
+    padding: 12,
+    marginHorizontal: 12,
+    marginVertical: 6,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 8,
+    elevation: 1,
   },
-  avatarWrapper: { marginRight: 12 },
-  avatar: { width: 54, height: 54, borderRadius: 27 },
-  avatarPlaceholder: { width: 54, height: 54, borderRadius: 27, justifyContent: 'center', alignItems: 'center' },
-  avatarPlaceholderText: { color: '#fff', fontSize: 20, fontWeight: '700' },
-  chatDetails: { flex: 1 },
-  chatHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' },
-  chatName: { fontSize: 16, fontWeight: '700', color: '#3A2D1F' },
-  lastMessage: { fontSize: 14, color: '#6B5C4A', marginTop: 4 },
-  timestamp: { fontSize: 12, color: '#A89074' },
-  emptyContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 40 },
-  emptyImage: { width: 150, height: 150, marginBottom: 20, opacity: 0.9 },
-  emptyText: { fontSize: 20, fontWeight: '700', color: '#3A2D1F' },
-  emptySubText: { fontSize: 14, color: '#6E5C47', textAlign: 'center', marginTop: 6 },
-  flatEmptyContainer: { flexGrow: 1, justifyContent: 'center' },
+  avatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    marginRight: 12,
+  },
+  avatarPlaceholder: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    marginRight: 12,
+    backgroundColor: '#DDD',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  avatarPlaceholderText: {
+    color: '#555',
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  chatInfo: {
+    flex: 1,
+  },
+  chatName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+  },
+  lastMessage: {
+    fontSize: 14,
+    color: '#666',
+    marginTop: 2,
+  },
+  timestamp: {
+    fontSize: 12,
+    color: '#999',
+    marginLeft: 8,
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  emptyText: {
+    fontSize: 18,
+    color: '#666',
+    textAlign: 'center',
+  },
+  flatEmptyContainer: {
+    flexGrow: 1,
+    justifyContent: 'center',
+  },
 });
 
 export default MessageScreen;

@@ -100,7 +100,13 @@ if (b.status === 'cancelled' && !b.cancelNotified) {
   await showNotification(title, body, { bookingId: b.id });
   await updateDoc(doc(db, 'bookings', b.id), { cancelNotified: true });
 }
-
+if (b.status === 'declined' && !b.declineNotified) {
+  await showNotification(
+    'Appointment Declined ❌',
+    `Your appointment with Dr. ${name} has been declined. Please choose another time.`
+  );
+  await updateDoc(doc(db, 'bookings', b.id), { declineNotified: true });
+}
 
 if (b.status === 'accepted' && !b.notified) {
   const title = 'Appointment Accepted ✅';
@@ -250,7 +256,7 @@ if (b.status === 'accepted' && !b.exactTimeNotified) {
       
       await updateDoc(doc(db, 'bookings', booking.id), { 
         paymentStatus: 'paid',
-        status: 'completed'
+        status: 'pending'
       });
 
 
@@ -272,20 +278,30 @@ if (b.status === 'accepted' && !b.exactTimeNotified) {
   };
 
  
-  const filtered = bookings.filter(b => {
-    const appt = getApptMoment(b);
+ const filtered = bookings.filter(b => {
+  const appt = getApptMoment(b);
 
-    if (filter === 'upcoming') {
-      return appt && appt.isSameOrAfter(now) && b.status !== 'cancelled' && b.paymentStatus !== 'paid';
-    }
-    if (filter === 'unpaid') {
-      return b.paymentStatus === 'unpaid' && b.status === 'accepted';
-    }
-    if (filter === 'complete') {
-      return b.paymentStatus === 'paid' && b.status === 'completed';
-    }
-    return false;
-  });
+  if (filter === 'upcoming') {
+
+    return (
+      appt &&
+      appt.isSameOrAfter(now) &&
+      b.status !== 'cancelled' &&
+      b.status !== 'completed'
+    );
+  }
+
+  if (filter === 'unpaid') {
+    return b.paymentStatus === 'unpaid' && b.status === 'accepted';
+  }
+
+  if (filter === 'complete') {
+    return b.paymentStatus === 'paid' && b.status === 'completed';
+  }
+
+  return false;
+});
+
 
   
   const renderItem = ({ item }) => {
