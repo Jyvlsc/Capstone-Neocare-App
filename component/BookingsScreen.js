@@ -256,11 +256,11 @@ if (b.status === 'accepted' && !b.exactTimeNotified) {
       
       await updateDoc(doc(db, 'bookings', booking.id), { 
         paymentStatus: 'paid',
-        status: 'pending'
+        status: 'paid'
       });
 
 
-      setFilter('complete');
+      setFilter('upcoming');
 
     } catch (e) {
       console.error(e);
