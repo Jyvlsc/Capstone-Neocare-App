@@ -9,20 +9,74 @@ import {
 import DateTimePicker, { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
 import { Picker } from '@react-native-picker/picker';
 import {
-  collection,
-  addDoc,
-  doc,
-  getDoc,
-  Timestamp,
-  serverTimestamp,
-  query,
-  where,
-  getDocs
+  collection, addDoc, doc, getDoc, Timestamp, serverTimestamp,
+  query, where, getDocs
 } from 'firebase/firestore';
 import { db, auth } from '../firebaseConfig';
 import moment from 'moment-timezone';
 import theme from '../src/theme';
 import commonStyles from '../src/commonStyles';
+
+/* 🔥 FILTER OUT PAST TIMES FOR TODAY */
+const filterFutureTimes = (selectedDate, timeSlots) => {
+  const now = moment().tz("Asia/Manila");
+  const isToday = now.format("YYYY-MM-DD") === moment(selectedDate).tz("Asia/Manila").format("YYYY-MM-DD");
+  if (!isToday) return timeSlots;
+  return timeSlots.filter(time => {
+    const slotMoment = moment(
+      `${moment(selectedDate).format("YYYY-MM-DD")} ${time}`,
+      "YYYY-MM-DD hh:mm A"
+    ).tz("Asia/Manila");
+    return slotMoment.isAfter(now);
+  });
+};
+
+/* 🔹 NEXT AVAILABLE SLOT CALCULATOR */
+const getNextAvailableSlot = async (consultant) => {
+  if (!consultant?.consultationHours?.length || !consultant?.availableDays?.length) return null;
+
+  let date = moment().tz("Asia/Manila").startOf("day");
+
+  for (let i = 0; i < 30; i++) { // look ahead 30 days
+    const weekday = date.format("dddd");
+
+    if (consultant.availableDays.includes(weekday)) {
+      // fetch booked times for this day
+      const dayStart = date.toDate();
+      const nextDay = moment(dayStart).add(1, "day").toDate();
+      const q = query(
+        collection(db, "bookings"),
+        where("consultantId", "==", consultant.id),
+        where("date", ">=", Timestamp.fromDate(dayStart)),
+        where("date", "<", Timestamp.fromDate(nextDay))
+      );
+      const snap = await getDocs(q);
+      const bookedTimes = snap.docs.map(d => d.data().hour || "");
+
+      // find first free slot
+      for (let t of consultant.consultationHours) {
+        const slotMoment = moment(`${date.format("YYYY-MM-DD")} ${t}`, "YYYY-MM-DD hh:mm A").tz("Asia/Manila");
+        if (slotMoment.isBefore(moment().tz("Asia/Manila"))) continue;
+        if (bookedTimes.includes(t)) continue;
+        return { date: date.toDate(), time: t };
+      }
+    }
+
+    date.add(1, "day");
+  }
+
+  return null;
+};
+
+/* 🔹 INITIAL NEXT AVAILABLE DATE FOR PICKER */
+const getNextAvailableDate = availableDays => {
+  const today = moment().tz('Asia/Manila').startOf('day');
+  for (let i = 0; i < 7; i++) {
+    if (availableDays.includes(today.format('dddd'))) return today.toDate();
+    today.add(1, 'day');
+  }
+  return today.toDate();
+};
 
 export default function AppointmentScreen({ route, navigation }) {
   const { consultant, date: dateParam, time: timeParam, platform: platformParam } = route.params;
@@ -34,10 +88,10 @@ export default function AppointmentScreen({ route, navigation }) {
     : getNextAvailableDate(usedConsultant.availableDays || []);
   const [selectedDate, setSelectedDate] = useState(initialDate);
 
-  // 2️⃣ Time (now as empty string rather than null)
+  // 2️⃣ Time
   const [selectedHour, setSelectedHour] = useState(timeParam || '');
 
-  // 3️⃣ Platform (also default to empty string)
+  // 3️⃣ Platform
   const modesRaw = Array.isArray(usedConsultant.platform) ? usedConsultant.platform : [];
   const availablePlatforms = modesRaw
     .map(m => {
@@ -64,9 +118,7 @@ export default function AppointmentScreen({ route, navigation }) {
     (async () => {
       try {
         const snap = await getDoc(doc(db, 'users', userId));
-        if (snap.exists() && snap.data().fullName) {
-          setFullName(snap.data().fullName);
-        }
+        if (snap.exists() && snap.data().fullName) setFullName(snap.data().fullName);
       } catch (e) { console.warn('Failed to fetch fullName:', e); }
     })();
   }, [userId]);
@@ -81,15 +133,32 @@ export default function AppointmentScreen({ route, navigation }) {
           collection(db, 'bookings'),
           where('consultantId', '==', usedConsultant.id),
           where('date', '>=', Timestamp.fromDate(dayStart)),
-          where('date', '<',  Timestamp.fromDate(nextDay))
+          where('date', '<', Timestamp.fromDate(nextDay))
         );
         const snap = await getDocs(q);
-        setBookedTimes(snap.docs.map(d => d.data().hour));
-      } catch (err) {
-        console.error('Error fetching bookings:', err);
-      }
+        setBookedTimes(snap.docs.map(d => d.data().hour || ""));
+      } catch (err) { console.error('Error fetching bookings:', err); }
     })();
   }, [selectedDate, usedConsultant.id]);
+
+  // 🔹 Next slot suggestion
+  const [nextSlot, setNextSlot] = useState(null);
+  useEffect(() => {
+    const fetchNextSlot = async () => {
+      const availableTimesToday = filterFutureTimes(
+        selectedDate,
+        (usedConsultant.consultationHours || []).filter(h => !bookedTimes.includes(h))
+      );
+
+      if (availableTimesToday.length === 0) {
+        const suggestion = await getNextAvailableSlot(usedConsultant);
+        setNextSlot(suggestion);
+      } else {
+        setNextSlot(null);
+      }
+    };
+    fetchNextSlot();
+  }, [selectedDate, bookedTimes]);
 
   // 📅 Date-picker change
   const onChangeDate = (event, newDate) => {
@@ -119,7 +188,7 @@ export default function AppointmentScreen({ route, navigation }) {
     }
   };
 
-  // 🔘 Booking submission with separate checks
+  // 🔘 Booking submission
   const handleBook = useCallback(async () => {
     if (!selectedHour) {
       ToastAndroid.show('Please select a time', ToastAndroid.SHORT);
@@ -155,13 +224,8 @@ export default function AppointmentScreen({ route, navigation }) {
       setIsBooking(false);
     }
   }, [
-    userId,
-    fullName,
-    usedConsultant,
-    selectedDate,
-    selectedHour,
-    selectedPlatform,
-    navigation
+    userId, fullName, usedConsultant,
+    selectedDate, selectedHour, selectedPlatform, navigation
   ]);
 
   return (
@@ -189,24 +253,55 @@ export default function AppointmentScreen({ route, navigation }) {
           {/* Time Picker */}
           <View style={styles.selectionContainer}>
             <Text style={styles.label}>Select Time</Text>
-            <Picker
-              selectedValue={selectedHour}
-              onValueChange={v => setSelectedHour(v)}
-            >
-              <Picker.Item label="-- pick a time --" value="" />
-              {(usedConsultant.consultationHours || [])
-                .filter(h => !bookedTimes.includes(h))
-                .map(h => <Picker.Item key={h} label={h} value={h} />)}
-            </Picker>
+
+            {(() => {
+              const availableTimesToday = filterFutureTimes(
+                selectedDate,
+                (usedConsultant.consultationHours || []).filter(h => !bookedTimes.includes(h))
+              );
+
+              return (
+                <>
+                  {availableTimesToday.length === 0 && nextSlot && (
+                    <View style={{ padding: 10 }}>
+                      <Text style={{ color: "red", fontSize: 14, marginBottom: 5 }}>
+                        No more time slots today — how about this one?
+                      </Text>
+
+                      <TouchableOpacity
+                        onPress={() => {
+                          setSelectedDate(nextSlot.date);
+                          setSelectedHour(nextSlot.time);
+                        }}
+                        style={{
+                          padding: 10,
+                          backgroundColor: "#eef",
+                          borderRadius: 8,
+                          marginTop: 5,
+                        }}
+                      >
+                        <Text style={{ fontSize: 16, fontWeight: "600" }}>
+                          {moment(nextSlot.date).format("MMM DD")} at {nextSlot.time}
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
+
+                  <Picker selectedValue={selectedHour} onValueChange={v => setSelectedHour(v)}>
+                    <Picker.Item label="-- pick a time --" value="" />
+                    {availableTimesToday.map(h => (
+                      <Picker.Item key={h} label={h} value={h} />
+                    ))}
+                  </Picker>
+                </>
+              );
+            })()}
           </View>
 
           {/* Platform Picker */}
           <View style={styles.selectionContainer}>
             <Text style={styles.label}>Platform</Text>
-            <Picker
-              selectedValue={selectedPlatform}
-              onValueChange={v => setSelectedPlatform(v)}
-            >
+            <Picker selectedValue={selectedPlatform} onValueChange={v => setSelectedPlatform(v)}>
               <Picker.Item label="-- pick a platform --" value="" />
               {availablePlatforms.map(p => (
                 <Picker.Item key={p} label={p} value={p} />
@@ -214,14 +309,11 @@ export default function AppointmentScreen({ route, navigation }) {
             </Picker>
           </View>
 
-          {/* Book Button (now disabled until time & platform are chosen) */}
+          {/* Book Button */}
           <TouchableOpacity
             style={[
               commonStyles.buttonPrimary,
-              {
-                margin: 20,
-                opacity: (!selectedHour || !selectedPlatform || isBooking) ? 0.5 : 1
-              }
+              { margin: 20, opacity: (!selectedHour || !selectedPlatform || isBooking) ? 0.5 : 1 }
             ]}
             onPress={handleBook}
             disabled={!selectedHour || !selectedPlatform || isBooking}
@@ -249,36 +341,15 @@ export default function AppointmentScreen({ route, navigation }) {
   );
 }
 
-const getNextAvailableDate = availableDays => {
-  const today = moment().tz('Asia/Manila').startOf('day');
-  for (let i = 0; i < 7; i++) {
-    if (availableDays.includes(today.format('dddd'))) {
-      return today.toDate();
-    }
-    today.add(1, 'day');
-  }
-  return today.toDate();
-};
-
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#FFF4E6' },
   card: { ...commonStyles.card, margin: 20 },
-  name: {
-    fontSize: 24, fontWeight: 'bold', color: '#333',
-    textAlign: 'center', marginBottom: 6
-  },
-  rateLabel: {
-    fontSize: 16, fontWeight: '600',
-    textAlign: 'center', marginBottom: 10,
-    color: theme.colors.primary
-  },
+  name: { fontSize: 24, fontWeight: 'bold', color: '#333', textAlign: 'center', marginBottom: 6 },
+  rateLabel: { fontSize: 16, fontWeight: '600', textAlign: 'center', marginBottom: 10, color: theme.colors.primary },
   image: { width: 120, height: 120, borderRadius: 60, alignSelf: 'center' },
   pickerContainer: { marginVertical: 20 },
   label: { fontSize: 16, fontWeight: '600', color: '#444', marginBottom: 10 },
-  pickerButton: {
-    backgroundColor: '#FFF', borderRadius: 10,
-    padding: 15, borderWidth: 1, borderColor: '#E0E0E0'
-  },
+  pickerButton: { backgroundColor: '#FFF', borderRadius: 10, padding: 15, borderWidth: 1, borderColor: '#E0E0E0' },
   pickerText: { fontSize: 16, color: '#333' },
   selectionContainer: { marginBottom: 20 },
   picker: { marginTop: 12 }

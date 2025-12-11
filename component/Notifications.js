@@ -45,7 +45,7 @@ export async function registerForPushNotificationsAsync() {
 
   // *** THIS IS THE CHANGE ***
   // get the **FCM device token** (not the Expo token)
-  const { data: token } = await Notifications.getDevicePushTokenAsync();
+  const { data: token } = await Notifications.getExpoPushTokenAsync();
   console.log('🔥 FCM token:', token);
   return token;
 }

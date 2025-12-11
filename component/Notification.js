@@ -26,7 +26,7 @@ export async function registerForPushNotificationsAsync() {
     console.warn('Notification permissions not granted!');
     return null;
   }
-  const { data: token } = await Notifications.getDevicePushTokenAsync();
+  const { data: token } = await Notifications.getExpoPushTokenAsync()();
   return token;
 }
 

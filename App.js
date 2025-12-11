@@ -6,9 +6,9 @@ import { NavigationContainer, useNavigationContainerRef } from '@react-navigatio
 import { createStackNavigator } from '@react-navigation/stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { getAuth } from 'firebase/auth';
+import * as Notifications from "expo-notifications";
 import Animated, { useAnimatedStyle, withSpring } from 'react-native-reanimated';
 import Ionicons from 'react-native-vector-icons/Ionicons';
-
 import GetStarted from './component/GetStarted';
 import Dashboard from './component/Dashboard';
 import BookingsScreen from './component/BookingsScreen';
@@ -17,6 +17,7 @@ import ProfileScreen from './component/ProfileScreen';
 import AssessmentScreen from './component/AssessmentScreen';
 import RegisterScreen from './component/RegisterScreen';
 import LoginScreen from './component/LoginScreen';
+import Forgetpass from "./component/Forgetpass";
 import MoodDetail from './component/MoodDetail';
 import BirthingCenterLocator from './component/BirthingCenterLocator';
 import ConsultantScreen from './component/ConsultantScreen';
@@ -27,6 +28,7 @@ import Tracker from './component/Tracker';
 import ChatBotScreen from './component/ChatBotScreen';
 import DoctorsScreen from './component/DoctorsScreen';
 import EmergencyVerificationScreen from './component/EmergencyVerificationScreen';
+
 
 import {
   registerForPushNotificationsAsync,
@@ -50,7 +52,7 @@ function HomeTabs() {
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
-        tabBarIcon: ({ focused, color, size }) => {
+        tabBarIcon: ({ focused, color, size }) => { 
           let iconName = '';
           switch (route.name) {
             case 'Home':         iconName = focused ? 'home'           : 'home-outline'; break;
@@ -98,8 +100,11 @@ function HomeTabs() {
 
 export default function App() {
   const navigationRef = useNavigationContainerRef();
+    
 
   useEffect(() => {
+   
+    
     // 1️⃣ Create Android notification channel
     configureAndroidChannel();
 
@@ -142,6 +147,7 @@ export default function App() {
         <Stack.Screen name="HomeTabs"              component={HomeTabs} />
         <Stack.Screen name="Assessment"            component={AssessmentScreen} />
         <Stack.Screen name="Register"              component={RegisterScreen} />
+        <Stack.Screen name="Forgetpass"             component={Forgetpass} />
         <Stack.Screen name="EmergencyVerification" component={EmergencyVerificationScreen} />
         <Stack.Screen name="Login"                 component={LoginScreen} />
         <Stack.Screen name="MoodDetail"            component={MoodDetail} />

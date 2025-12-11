@@ -1,15 +1,15 @@
 import React, { useState } from 'react';
-import { 
-  View, 
-  Text, 
-  TextInput, 
-  TouchableOpacity, 
-  StyleSheet, 
-  Alert, 
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  StyleSheet,
   ActivityIndicator,
-  SafeAreaView 
+  SafeAreaView,
 } from 'react-native';
-import { getAuth, signInWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth';
+import { LinearGradient } from 'expo-linear-gradient';
+import { getAuth, signInWithEmailAndPassword } from 'firebase/auth';
 
 const LoginScreen = ({ navigation }) => {
   const [email, setEmail] = useState('');
@@ -20,101 +20,129 @@ const LoginScreen = ({ navigation }) => {
   const handleLogin = async () => {
     setErrorMessage(null);
     setLoading(true);
+
     try {
+      if (!email) {
+        setErrorMessage('Email is required.');
+        setLoading(false);
+        return;
+      }
       if (!email.includes('@')) {
         setErrorMessage('Please enter a valid email address.');
         setLoading(false);
         return;
       }
+      if (!password) {
+        setErrorMessage('Password is required.');
+        setLoading(false);
+        return;
+      }
+
       const auth = getAuth();
       await signInWithEmailAndPassword(auth, email, password);
       navigation.navigate('GetStarted');
     } catch (error) {
-      Alert.alert('Login failed', error.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleForgotPassword = async () => {
-    if (!email || !email.includes('@')) {
-      Alert.alert('Invalid email', 'Please enter your email in the email field above.');
-      return;
-    }
-    setLoading(true);
-    try {
-      await sendPasswordResetEmail(getAuth(), email);
-      Alert.alert('Email sent', 'Check your inbox for password reset instructions.');
-    } catch (error) {
-      Alert.alert('Error', error.message);
+      switch (error.code) {
+        case 'auth/invalid-email':
+          setErrorMessage('The email address is not valid.');
+          break;
+        case 'auth/user-not-found':
+          setErrorMessage('No account found with this email.');
+          break;
+        case 'auth/wrong-password':
+          setErrorMessage('Incorrect password. Please try again.');
+          break;
+        default:
+          setErrorMessage('Login failed. Please try again.');
+          break;
+      }
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.innerContainer}>
-        <Text style={styles.title}>Login</Text>
-        <Text style={styles.subtitle}>Please sign in to continue</Text>
-        {errorMessage && <Text style={styles.errorText}>{errorMessage}</Text>}
-        <TextInput
-          style={styles.input}
-          placeholder="Email"
-          placeholderTextColor="#aaa"
-          keyboardType="email-address"
-          autoCapitalize="none"
-          value={email}
-          onChangeText={setEmail}
-        />
-        <TextInput
-          style={styles.input}
-          placeholder="Password"
-          placeholderTextColor="#aaa"
-          secureTextEntry
-          value={password}
-          onChangeText={setPassword}
-        />
-        <TouchableOpacity onPress={handleForgotPassword}>
-          <Text style={styles.forgotText}>Forgot Password?</Text>
-        </TouchableOpacity>
-        <TouchableOpacity 
-          style={[styles.button, loading && styles.buttonDisabled]}
-          onPress={handleLogin}
-          disabled={loading}
-        >
-          {loading ? (
-            <ActivityIndicator color="#fff" />
-          ) : (
-            <Text style={styles.buttonText}>Login</Text>
-          )}
-        </TouchableOpacity>
-        <View style={styles.socialLogin}>
-          <Text style={styles.socialText}>or</Text>
-          {/* Social login buttons can be added here */}
+    <LinearGradient colors={['#FFE4F3', '#FFF4E6']} style={styles.container}>
+      <SafeAreaView style={styles.safeArea}>
+        <View style={styles.card}>
+          <Text style={styles.title}>Welcome Back 👋</Text>
+          <Text style={styles.subtitle}>Sign in to continue</Text>
+
+          {errorMessage && <Text style={styles.errorText}>{errorMessage}</Text>}
+          <Text style={styles.Textlabel}>Email address </Text>
+          <TextInput
+            style={styles.input}
+            placeholder="Email"
+            placeholderTextColor="#aaa"
+            keyboardType="email-address"
+            autoCapitalize="none"
+            value={email}
+            onChangeText={setEmail}
+          />
+           <Text style={styles.Textlabel}>Password </Text>
+          <TextInput
+            style={styles.input}
+            placeholder="Password"
+            placeholderTextColor="#aaa"
+            secureTextEntry
+            value={password}
+            onChangeText={setPassword}
+          />
+
+          <TouchableOpacity onPress={() => navigation.navigate('Forgetpass')}>
+            <Text style={styles.forgotText}>Forgot Password?</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.button, loading && styles.buttonDisabled]}
+            onPress={handleLogin}
+            disabled={loading}
+          >
+            {loading ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={styles.buttonText}>Login</Text>
+            )}
+          </TouchableOpacity>
+
+          <View style={styles.divider}>
+            <View style={styles.line} />
+            <Text style={styles.dividerText}>or continue with </Text>
+            <View style={styles.line} />
+          </View>
+
+          <TouchableOpacity onPress={() => navigation.navigate('Register')}>
+            <Text style={styles.link}>Don’t have an account? <Text style={{ fontWeight: 'bold', color: '#D47FA6' }}>Sign Up</Text></Text>
+          </TouchableOpacity>
         </View>
-        <TouchableOpacity onPress={() => navigation.navigate('Register')}>
-          <Text style={styles.link}>Don't have an account? Sign Up</Text>
-        </TouchableOpacity>
-      </View>
-    </SafeAreaView>
+      </SafeAreaView>
+    </LinearGradient>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFF4E6',
   },
-  innerContainer: {
+  
+  safeArea: {
     flex: 1,
     justifyContent: 'center',
     paddingHorizontal: 20,
   },
+  card: {
+    backgroundColor: 'rgba(255,255,255,0.95)',
+    borderRadius: 20,
+    padding: 25,
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    elevation: 6,
+  },
   title: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    marginBottom: 10,
+    fontSize: 28,
+    fontWeight: '700',
+    marginBottom: 5,
     textAlign: 'center',
     color: '#D47FA6',
   },
@@ -122,58 +150,73 @@ const styles = StyleSheet.create({
     fontSize: 16,
     marginBottom: 20,
     textAlign: 'center',
-    color: '#A9A9A9',
+    color: '#7D7D7D',
   },
   errorText: {
-    color: '#FF0000',
+    color: '#FF4D4D',
+    fontSize: 14,
     textAlign: 'center',
-    marginBottom: 10,
+    marginBottom: 15,
   },
   input: {
     borderWidth: 1,
-    borderColor: '#D47FA6',
-    borderRadius: 10,
+    borderColor: '#E5E5E5',
+    borderRadius: 12,
     padding: 15,
     marginBottom: 15,
     backgroundColor: '#fff',
     color: '#333',
+    fontSize: 15,
   },
   button: {
     backgroundColor: '#D47FA6',
     paddingVertical: 15,
-    borderRadius: 10,
+    borderRadius: 12,
     alignItems: 'center',
-    marginBottom: 15,
+    marginBottom: 20,
+    shadowColor: '#D47FA6',
+    shadowOpacity: 0.4,
+    shadowRadius: 5,
+    elevation: 4,
   },
   buttonDisabled: {
     backgroundColor: '#a88aa8',
   },
   buttonText: {
     color: '#FFFFFF',
-    fontWeight: 'bold',
+    fontWeight: '600',
     fontSize: 16,
   },
-  link: {
-    color: '#FF6F61',
-    textAlign: 'center',
-    marginTop: 10,
-    fontSize: 14,
-  },
-  socialLogin: {
+  divider: {
     flexDirection: 'row',
-    justifyContent: 'center',
     alignItems: 'center',
-    marginVertical: 20,
+    marginBottom: 15,
   },
-  socialText: {
-    color: '#333',
+  line: {
+    flex: 1,
+    height: 1,
+    backgroundColor: '#ddd',
+  },
+  dividerText: {
     marginHorizontal: 10,
+    color: '#7D7D7D',
+  },
+  link: {
+    color: '#555',
+    textAlign: 'center',
+    fontSize: 14,
   },
   forgotText: {
     color: '#007AFF',
     alignSelf: 'flex-end',
-    marginVertical: 8,
+    marginBottom: 15,
   },
+    Textlabel: { 
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#374151',
+    marginBottom: 8,
+   },
 });
 
-export default LoginScreen; 
+export default LoginScreen;

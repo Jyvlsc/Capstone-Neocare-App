@@ -1,5 +1,4 @@
 // src/screens/BirthingCenterLocator.js
-
 import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
@@ -14,7 +13,6 @@ import {
   TextInput,
 } from 'react-native';
 import * as Location from 'expo-location';
-import { GooglePlacesAutocomplete } from 'react-native-google-places-autocomplete';
 import CustomHeader from './CustomHeader';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
@@ -27,7 +25,7 @@ const theme = {
     background: '#FFF4E6',
     text: '#333',
     subtext: '#666',
-  }
+  },
 };
 
 export default function BirthingCenterLocator({ navigation }) {
@@ -41,7 +39,7 @@ export default function BirthingCenterLocator({ navigation }) {
     navigation.setOptions({ headerShown: false });
   }, [navigation]);
 
-  // 1️⃣ Get user location
+
   useEffect(() => {
     (async () => {
       const { status } = await Location.requestForegroundPermissionsAsync();
@@ -63,7 +61,7 @@ export default function BirthingCenterLocator({ navigation }) {
     })();
   }, []);
 
-  // 2️⃣ Fetch registered centers (role==="clinic")
+ 
   useEffect(() => {
     (async () => {
       try {
@@ -76,7 +74,7 @@ export default function BirthingCenterLocator({ navigation }) {
     })();
   }, []);
 
-  // 3️⃣ Fetch nearby via Google Places
+  
   useEffect(() => {
     if (!userLocation) return;
     fetchNearbyCenters(userLocation.latitude, userLocation.longitude);
@@ -97,7 +95,7 @@ export default function BirthingCenterLocator({ navigation }) {
     }
   };
 
-  // Distance function
+ 
   const calculateDistance = (lat1, lon1, lat2, lon2) => {
     const toRad = v => (v * Math.PI) / 180;
     const R = 6371; // radius in km
@@ -111,7 +109,7 @@ export default function BirthingCenterLocator({ navigation }) {
     return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   };
 
-  // Filter registered centers by searchTerm
+ 
   const filteredRegistered = useMemo(() => {
     const term = searchTerm.trim().toLowerCase();
     return registeredCenters.filter(center =>
@@ -119,7 +117,7 @@ export default function BirthingCenterLocator({ navigation }) {
     );
   }, [searchTerm, registeredCenters]);
 
-  // Filter nearby places by distance & name
+ 
   const filteredPlaces = useMemo(() => {
     const term = searchTerm.trim().toLowerCase();
     return birthingCenters
@@ -141,7 +139,7 @@ export default function BirthingCenterLocator({ navigation }) {
       );
   }, [birthingCenters, userLocation, searchTerm]);
 
-  // Open Google Maps directions
+ 
   const openDirections = loc => {
     if (!userLocation) return Alert.alert('No location available');
     const origin = `${userLocation.latitude},${userLocation.longitude}`;
@@ -167,7 +165,7 @@ export default function BirthingCenterLocator({ navigation }) {
         backButton
       />
 
-      {/* Search Input */}
+      
       <View style={styles.searchWrapper}>
         <TextInput
           style={styles.searchInput}
@@ -177,7 +175,7 @@ export default function BirthingCenterLocator({ navigation }) {
         />
       </View>
 
-      {/* Registered Centers */}
+    
       <Text style={styles.sectionTitle}>Your App’s Centers</Text>
       <FlatList
         data={filteredRegistered}
@@ -189,7 +187,6 @@ export default function BirthingCenterLocator({ navigation }) {
           </Text>
         }
         renderItem={({ item }) => {
-          // only show distance if we have both userLocation and stored coords
           const hasLoc =
             userLocation &&
             item.birthCenterLocation?.lat != null &&
@@ -230,30 +227,8 @@ export default function BirthingCenterLocator({ navigation }) {
         }}
       />
 
-      {/* Nearby Google Places */}
+    
       <Text style={styles.sectionTitle}>Centers Near You</Text>
-      <GooglePlacesAutocomplete
-        placeholder="Search nearby…"
-        fetchDetails
-        onPress={(data, details = null) => {
-          if (details?.geometry?.location) {
-            const { lat, lng } = details.geometry.location;
-            fetchNearbyCenters(lat, lng);
-          }
-        }}
-        query={{
-          key: GOOGLE_MAPS_API_KEY,
-          language: 'en',
-          location: userLocation
-            ? `${userLocation.latitude},${userLocation.longitude}`
-            : '',
-          radius: 5000,
-        }}
-        styles={{
-          container: styles.googleWrapper,
-          textInput: styles.googleInput,
-        }}
-      />
       <FlatList
         data={filteredPlaces}
         keyExtractor={i => i.place_id}
@@ -332,16 +307,16 @@ const styles = StyleSheet.create({
     marginHorizontal: 16,
     marginVertical: 8,
     padding: 16,
-    borderRadius: 12,
+    borderRadius: 16,
     shadowColor: '#000',
-    shadowOpacity: 0.1,
-    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowOffset: { width: 0, height: 3 },
     shadowRadius: 6,
     elevation: 3,
   },
   cardTitle: {
     fontSize: 18,
-    fontWeight: '600',
+    fontWeight: '700',
     color: theme.colors.text,
   },
   cardSubtitle: {
@@ -353,20 +328,6 @@ const styles = StyleSheet.create({
     marginTop: 8,
     fontSize: 14,
     color: theme.colors.primary,
-    fontWeight: '500',
-  },
-
-  googleWrapper: {
-    marginHorizontal: 16,
-    borderRadius: 25,
-    overflow: 'hidden',
-    elevation: 2,
-    backgroundColor: '#fff',
-    marginTop: 8,
-  },
-  googleInput: {
-    height: 44,
-    paddingHorizontal: 16,
-    fontSize: 16,
+    fontWeight: '600',
   },
 });

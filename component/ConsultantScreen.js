@@ -9,6 +9,7 @@ import {
   TouchableOpacity,
   SafeAreaView,
   ActivityIndicator,
+  Animated,
 } from 'react-native';
 import { db } from '../firebaseConfig';
 import { collection, getDocs, query, where } from 'firebase/firestore';
@@ -20,6 +21,7 @@ export default function ConsultantScreen({ navigation }) {
   const [consultants, setConsultants] = useState([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
+  const scale = new Animated.Value(1);
 
   useEffect(() => {
     const fetchAll = async () => {
@@ -57,18 +59,28 @@ export default function ConsultantScreen({ navigation }) {
     fetchAll();
   }, []);
 
-  const filtered = consultants.filter(c =>
-    c.hourlyRate != null &&
-    c.name?.toLowerCase().includes(search.toLowerCase())
+  const filtered = consultants.filter(
+    c =>
+      c.hourlyRate != null &&
+      c.name?.toLowerCase().includes(search.toLowerCase())
   );
+
+  const animatePress = () => {
+    Animated.sequence([
+      Animated.timing(scale, { toValue: 0.96, duration: 100, useNativeDriver: true }),
+      Animated.spring(scale, { toValue: 1, friction: 3, useNativeDriver: true }),
+    ]).start();
+  };
 
   const renderItem = ({ item }) => (
     <TouchableOpacity
-      onPress={() =>
-        navigation.navigate('ConsultantDetail', { consultantId: item.id })
-      }
+      onPress={() => {
+        animatePress();
+        navigation.navigate('ConsultantDetail', { consultantId: item.id });
+      }}
+      activeOpacity={0.8}
     >
-      <View style={styles.card}>
+      <Animated.View style={[styles.card, { transform: [{ scale }] }]}>
         <ExpoImage
           source={{ uri: item.profilePhoto }}
           style={styles.image}
@@ -87,12 +99,12 @@ export default function ConsultantScreen({ navigation }) {
               : 'Rate to be announced'}
           </Text>
         </View>
-      </View>
+      </Animated.View>
     </TouchableOpacity>
   );
 
   if (loading) {
-    return <ActivityIndicator style={styles.loader} />;
+    return <ActivityIndicator style={styles.loader} size="large" color="#D47FA6" />;
   }
 
   return (
@@ -106,7 +118,8 @@ export default function ConsultantScreen({ navigation }) {
         ListHeaderComponent={
           <TextInput
             style={styles.searchInput}
-            placeholder="Search by name"
+            placeholder="🔍 Search consultants..."
+            placeholderTextColor="#999"
             value={search}
             onChangeText={setSearch}
           />
@@ -118,29 +131,42 @@ export default function ConsultantScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: theme.colors.background || '#F5F5F5' },
+  container: { flex: 1, backgroundColor: '#FAF7FB' },
   loader: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   searchInput: {
-    borderBottomWidth: 1,
+    borderWidth: 1,
     borderColor: '#D47FA6',
-    padding: 10,
+    padding: 12,
     margin: 16,
-    borderRadius: 4,
+    borderRadius: 25,
     backgroundColor: '#fff',
+    elevation: 3,
+    fontSize: 16,
   },
   card: {
     flexDirection: 'row',
-    padding: 12,
+    padding: 16,
     backgroundColor: '#fff',
     marginHorizontal: 16,
-    marginBottom: 12,
-    borderRadius: 8,
-    elevation: 2,
+    marginBottom: 14,
+    borderRadius: 16,
+    elevation: 4,
+    shadowColor: '#D47FA6',
+    shadowOpacity: 0.2,
+    shadowOffset: { width: 0, height: 3 },
+    shadowRadius: 5,
   },
-  image: { width: 50, height: 50, borderRadius: 25, marginRight: 12 },
+  image: {
+    width: 65,
+    height: 65,
+    borderRadius: 35,
+    marginRight: 14,
+    borderWidth: 2,
+    borderColor: '#D47FA6',
+  },
   info: { flex: 1, justifyContent: 'center' },
-  name: { fontSize: 18, fontWeight: 'bold', color: '#333' },
-  specialty: { fontSize: 14, color: '#666' },
-  rating: { fontSize: 14, color: '#FFD700', marginTop: 4 },
-  rate: { fontSize: 14, color: '#333', marginTop: 2, fontWeight: '600' },
+  name: { fontSize: 20, fontWeight: '700', color: '#333' },
+  specialty: { fontSize: 15, color: '#666', marginTop: 2 },
+  rating: { fontSize: 14, color: '#FFD700', marginTop: 6 },
+  rate: { fontSize: 15, color: '#D47FA6', marginTop: 4, fontWeight: '600' },
 });
